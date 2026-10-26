@@ -95,3 +95,46 @@ git commit -m "Set up InfraScan FastAPI foundation"
 ## Next phase
 
 Phase 2 will add PostgreSQL, SQLAlchemy, database configuration, and the first infrastructure/inspection data models.
+## Docker Deployment
+
+### Requirements
+- Docker Desktop installed and running.
+
+### Build the Docker image
+
+Run this command from the project root directory, where the `Dockerfile` is located:
+
+```powershell
+docker build -t infrascan-api .
+```
+
+### Run the Docker container
+
+```powershell
+docker run --name infrascan-container -p 8000:8000 infrascan-api
+```
+
+### Access the API
+
+After the container starts, open these addresses in your browser:
+
+- **API Root:** http://localhost:8000/
+- **Health Check:** http://localhost:8000/health
+- **Swagger API Documentation:** http://localhost:8000/docs
+
+### Stop the container
+
+Open another PowerShell terminal and run:
+
+```powershell
+docker stop infrascan-container
+```
+
+### Run automated tests
+
+From the project root, run:
+
+```powershell
+python -m pytest
+```
+
