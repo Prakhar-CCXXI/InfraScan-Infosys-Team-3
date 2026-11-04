@@ -1,0 +1,12 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+body{@apply bg-concrete text-ink antialiased}
+.btn{@apply inline-flex items-center gap-2 rounded-md bg-steel px-3 py-2 text-sm font-medium text-white hover:bg-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-survey disabled:opacity-50}
+.btn-ghost{@apply inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-survey}
+.input{@apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-steel focus:outline-none focus:ring-1 focus:ring-steel}
+th{@apply px-3 py-2 text-left text-xs font-semibold text-slate-500}td{@apply px-3 py-2 text-sm}
+@media print{aside,header,.no-print{display:none!important}main{padding:0!important}}
+
+.hazard{height:4px;background:repeating-linear-gradient(45deg,#e8a317 0 10px,#16232e 10px 20px)}
+body.print-report main>*:not(.rp){display:none!important}
+body.print-report .rp{position:static!important;background:none!important}
+body.print-report .rp>div{max-height:none!important;overflow:visible!important;max-width:none!important}

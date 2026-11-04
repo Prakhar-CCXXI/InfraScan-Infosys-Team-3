@@ -1,0 +1,5 @@
+export const SEV_CLS={'No Visible Damage':'bg-emerald-100 text-emerald-800','Minor Damage':'bg-lime-100 text-lime-800','Moderate Damage':'bg-amber-100 text-amber-800','Severe Damage':'bg-orange-100 text-orange-800','Critical / Requires Urgent Engineering Review':'bg-red-100 text-red-800'};
+export const PRI_CLS={'Routine Monitoring':'bg-slate-100 text-slate-700','Low Priority':'bg-sky-100 text-sky-800','Medium Priority':'bg-amber-100 text-amber-800','High Priority':'bg-orange-100 text-orange-800','Urgent Engineering Review':'bg-red-100 text-red-800'};
+export const STATUS_CLS={Completed:'bg-emerald-100 text-emerald-800','Pending Review':'bg-amber-100 text-amber-800',Assigned:'bg-sky-100 text-sky-800','In Progress':'bg-indigo-100 text-indigo-800',Open:'bg-slate-100 text-slate-700'};
+export const download=(name,text,mime)=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:mime}));a.download=name;a.click();URL.revokeObjectURL(a.href);};
+export const toCsv=rows=>{if(!rows.length)return '';const k=Object.keys(rows[0]);return [k.join(','),...rows.map(r=>k.map(c=>`"${String(r[c]??'').replace(/"/g,'""')}"`).join(','))].join('\n');};
