@@ -4,9 +4,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.db.session import Base, get_db
-from app.main import app
-from app.models.inspection import Inspection  # noqa: F401
+from backend.db.session import Base, get_db
+from backend.main import app
+from backend.models.inspection import Inspection  # noqa: F401
 
 TEST_ENGINE = create_engine(
     "sqlite://",

@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.db.session import get_db
-from app.models.inspection import Inspection
-from app.schemas.inspection import InspectionCreate, InspectionResponse
+from backend.db.session import get_db
+from backend.models.inspection import Inspection
+from backend.schemas.inspection import InspectionCreate, InspectionResponse
 
 router = APIRouter(prefix="/inspections", tags=["Inspections"])
 

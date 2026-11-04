@@ -3,8 +3,8 @@ from datetime import datetime
 from sqlalchemy import DateTime, Enum as SAEnum, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.session import Base , get_db
-from app.schemas.inspection import InfrastructureType
+from backend.db.session import Base , get_db
+from backend.schemas.inspection import InfrastructureType
 
 
 class Inspection(Base):
