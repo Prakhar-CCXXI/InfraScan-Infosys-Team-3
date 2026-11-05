@@ -1,0 +1,41 @@
+ data/Crack500-YOLO-Segmentation/README.md          |    60 [32m+[m
+ .../results/hybrid_config.json                     |    73 [32m+[m
+ .../results/per_image_test.csv                     |  1125 [32m+[m
+ .../results/test_results.json                      |   140 [32m+[m
+ .../results/val_grid.csv                           |   145 [32m+[m
+ .../results/val_yolo_only.csv                      |     6 [32m+[m
+ .../training_scripts/evaluate_hybrid.py            |   235 [32m+[m
+ .../training_scripts/geometry.py                   |    46 [32m+[m
+ .../training_scripts/hybrid_pipeline.py            |   244 [32m+[m
+ .../training_scripts/hybrid_router.py              |   106 [32m+[m
+ .../training_scripts/prepare_yolo_dataset.py       |   121 [32m+[m
+ .../training_scripts/test_hybrid_logic.py          |    49 [32m+[m
+ .../training_scripts/train_yolo_seg.py             |    36 [32m+[m
+ data/sdnet2018_classification/README.md            |    64 [32m+[m
+ .../checkpoints/ConvNeXt-Tiny/best.pt              |   Bin [31m0[m -> [32m111338143[m bytes
+ .../checkpoints/densenet/best.pt                   |   Bin [31m0[m -> [32m28383610[m bytes
+ .../checkpoints/efficientnet_b0/best.pt            |   Bin [31m0[m -> [32m16314597[m bytes
+ .../checkpoints/mobilenet_v3_large/best.pt         |   Bin [31m0[m -> [32m17006549[m bytes
+ .../checkpoints/resnet50/best.pt                   |   Bin [31m0[m -> [32m94329976[m bytes
+ .../results/ConvNeXt-Tiny/metrics.json             |   310 [32m+[m
+ .../results/ConvNeXt-Tiny/test_probs.csv           | 10972 [32m++++[m
+ .../results/densenet/metrics.json                  |   255 [32m+[m
+ .../results/densenet/test_probs.csv                | 10972 [32m++++[m
+ .../results/efficientnet_b0/history.csv            |    19 [32m+[m
+ .../results/efficientnet_b0/metrics.json           |   354 [32m+[m
+ .../results/efficientnet_b0/test_probs.csv         | 10972 [32m++++[m
+ .../results/mobilenet_v3_large/history.csv         |    19 [32m+[m
+ .../results/mobilenet_v3_large/metrics.json        |   354 [32m+[m
+ .../results/mobilenet_v3_large/test_probs.csv      | 10972 [32m++++[m
+ .../results/resnet50/recovered_metrics.json        |    42 [32m+[m
+ .../resnet50/recovered_test_predictions.csv        | 10972 [32m++++[m
+ .../resnet50/recovered_validation_predictions.csv  | 11470 [32m++++[m
+ .../splits/split_report.json                       |    32 [32m+[m
+ data/sdnet2018_classification/splits/splits.csv    | 56093 [32m+++++++++++++++++++[m
+ .../splits/splits_fold0.csv                        | 56093 [32m+++++++++++++++++++[m
+ .../splits/splits_fold1.csv                        | 56093 [32m+++++++++++++++++++[m
+ .../splits/splits_fold2.csv                        | 56093 [32m+++++++++++++++++++[m
+ .../splits/splits_fold3.csv                        | 56093 [32m+++++++++++++++++++[m
+ .../splits/splits_fold4.csv                        | 56093 [32m+++++++++++++++++++[m
+ .../training_scripts/train_classifier.py           |   207 [32m+[m
+ 40 files changed, 406930 insertions(+)

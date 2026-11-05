@@ -1,0 +1,140 @@
+{
+  "n_test": 1124,
+  "unet_thr": 0.4,
+  "gpu": "Tesla T4",
+  "configs": {
+    "yolo_conf": 0.25,
+    "roi_gated": {
+      "yolo_conf": 0.1,
+      "gate": "mask",
+      "margin": 8,
+      "t_in": 0.4,
+      "t_out": null,
+      "yolo_imgsz": 640,
+      "min_roi": 96
+    },
+    "dual_threshold": {
+      "yolo_conf": 0.1,
+      "gate": "mask",
+      "margin": 8,
+      "t_in": 0.4,
+      "t_out": 0.9,
+      "yolo_imgsz": 640,
+      "min_roi": 96
+    }
+  },
+  "metrics": {
+    "unet": {
+      "dice": 0.74815429619084,
+      "iou": 0.5976409823625466,
+      "precision": 0.7114068028732913,
+      "recall": 0.7889049307857616,
+      "mean_image_dice": 0.7030083751272717
+    },
+    "yolo_only": {
+      "dice": 0.7323372580168218,
+      "iou": 0.5777066989214549,
+      "precision": 0.6917990449073406,
+      "recall": 0.7779221333601523,
+      "mean_image_dice": 0.6734342110845315
+    },
+    "hybrid_roi_gated": {
+      "dice": 0.7454059228897145,
+      "iou": 0.5941411142372143,
+      "precision": 0.7121179153778416,
+      "recall": 0.7819586405484754,
+      "mean_image_dice": 0.6988185794133305
+    },
+    "hybrid_dual_threshold": {
+      "dice": 0.7489451393951049,
+      "iou": 0.598650916901425,
+      "precision": 0.7169945882001066,
+      "recall": 0.7838760470825913,
+      "mean_image_dice": 0.7035462596140559
+    }
+  },
+  "metrics_excluding_leak_flagged": {
+    "unet": {
+      "dice": 0.74815429619084,
+      "iou": 0.5976409823625466,
+      "precision": 0.7114068028732913,
+      "recall": 0.7889049307857616,
+      "mean_image_dice": 0.7021128438227873
+    },
+    "yolo_only": {
+      "dice": 0.7323372580168218,
+      "iou": 0.5777066989214549,
+      "precision": 0.6917990449073406,
+      "recall": 0.7779221333601523,
+      "mean_image_dice": 0.6733959721568206
+    },
+    "hybrid_roi_gated": {
+      "dice": 0.7454059228897145,
+      "iou": 0.5941411142372143,
+      "precision": 0.7121179153778416,
+      "recall": 0.7819586405484754,
+      "mean_image_dice": 0.6976259560706252
+    },
+    "hybrid_dual_threshold": {
+      "dice": 0.7489451393951049,
+      "iou": 0.598650916901425,
+      "precision": 0.7169945882001066,
+      "recall": 0.7838760470825913,
+      "mean_image_dice": 0.7025185206952196
+    }
+  },
+  "n_leak_flagged_test_images": 37,
+  "inference_ms": {
+    "unet": {
+      "mean": 41.778565421961595,
+      "median": 41.584882999814,
+      "p95": 44.622846000493155
+    },
+    "yolo_only": {
+      "mean": 18.41297790275165,
+      "median": 15.75167299961322,
+      "p95": 25.820680999459
+    },
+    "hybrid_roi_gated": {
+      "mean": 42.10010506780849,
+      "median": 39.15293099998962,
+      "p95": 63.61856599960447
+    },
+    "hybrid_dual_threshold": {
+      "mean": 56.8666076128632,
+      "median": 53.46522699983325,
+      "p95": 65.82563100073457
+    }
+  },
+  "yolo_no_detection_images": 13,
+  "paired_bootstrap_vs_unet": {
+    "yolo_only": {
+      "mean_image_dice_diff": -0.029574164042740117,
+      "ci95": [
+        -0.03712347902078722,
+        -0.02211582404230303
+      ],
+      "n_images": 1124,
+      "verdict": "WORSE than baseline"
+    },
+    "hybrid_roi_gated": {
+      "mean_image_dice_diff": -0.004189795713941088,
+      "ci95": [
+        -0.007620168793849802,
+        -0.0008352888875094361
+      ],
+      "n_images": 1124,
+      "verdict": "WORSE than baseline"
+    },
+    "hybrid_dual_threshold": {
+      "mean_image_dice_diff": 0.0005378844867842691,
+      "ci95": [
+        -0.00046960286928284705,
+        0.0014862880342642723
+      ],
+      "n_images": 1124,
+      "verdict": "NO demonstrated improvement"
+    }
+  },
+  "note": "Hybrid timing = YOLO + U-Net + fusion (batch 1, includes pre/post-processing, excludes image decoding and geometry). Two hybrid variants were pre-declared from validation; interpret p-values with that in mind."
+}

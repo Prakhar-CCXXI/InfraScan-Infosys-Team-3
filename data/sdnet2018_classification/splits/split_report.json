@@ -1,0 +1,32 @@
+{
+  "0": {
+    "train_images": 33652,
+    "val_images": 11469,
+    "test_images": 10971,
+    "leakage_check": "passed"
+  },
+  "1": {
+    "train_images": 33163,
+    "val_images": 11460,
+    "test_images": 11469,
+    "leakage_check": "passed"
+  },
+  "2": {
+    "train_images": 33420,
+    "val_images": 11212,
+    "test_images": 11460,
+    "leakage_check": "passed"
+  },
+  "3": {
+    "train_images": 33900,
+    "val_images": 10980,
+    "test_images": 11212,
+    "leakage_check": "passed"
+  },
+  "4": {
+    "train_images": 34141,
+    "val_images": 10971,
+    "test_images": 10980,
+    "leakage_check": "passed"
+  }
+}
