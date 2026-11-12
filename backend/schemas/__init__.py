@@ -10,6 +10,12 @@ from backend.schemas.prediction import (
     PredictionResponse,
     SegmentationMask,
 )
+from backend.schemas.user import (
+    UserLoginRequest,
+    UserLoginResponse,
+    UserRegisterRequest,
+    UserResponse,
+)
 
 __all__ = [
     "InfrastructureType",
@@ -20,4 +26,8 @@ __all__ = [
     "DefectItem",
     "DefectAnalysis",
     "PredictionResponse",
+    "UserLoginRequest",
+    "UserRegisterRequest",
+    "UserResponse",
+    "UserLoginResponse",
 ]

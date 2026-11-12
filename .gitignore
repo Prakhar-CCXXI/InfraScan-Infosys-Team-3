@@ -18,5 +18,8 @@ uploads/*
 !uploads/.gitkeep
 node_modules/
 frontend/dist/
+data/
+
+
 
 

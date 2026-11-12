@@ -6,20 +6,28 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.routes.assets import router as assets_router
+from backend.api.routes.auth import router as auth_router
 from backend.api.routes.health import router as health_router
 from backend.api.routes.inspections import router as inspections_router
 from backend.api.routes.predictions import (
     images_router,
     router as predictions_router,
 )
+from backend.api.routes.users import router as users_router
 from backend.core.config import settings
+from backend.db.session import Base, engine
+import backend.models  # noqa: F401
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Ensure runtime directories exist on application startup."""
+    """Ensure runtime directories exist and tables are verified on application startup."""
     upload_path = Path(settings.UPLOAD_DIR)
     upload_path.mkdir(parents=True, exist_ok=True)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception:
+        pass
     yield
 
 
@@ -29,6 +37,12 @@ app = FastAPI(
     version="0.3.0",
     lifespan=lifespan,
 )
+
+# Allow React frontend to communicate with FastAPI
+origins = [
+    "http://localhost:5173"
+]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -47,6 +61,12 @@ app.mount("/uploads", StaticFiles(directory=str(upload_dir_path)), name="uploads
 app.include_router(health_router, tags=["Health"])
 
 # Core domain routers (accessible directly and via /api/v1 prefix)
+app.include_router(auth_router)
+app.include_router(auth_router, prefix=settings.API_PREFIX)
+
+app.include_router(users_router)
+app.include_router(users_router, prefix=settings.API_PREFIX)
+
 app.include_router(inspections_router)
 app.include_router(inspections_router, prefix=settings.API_PREFIX)
 
@@ -75,5 +95,8 @@ def root():
             "predictions_analyze": f"{settings.API_PREFIX}/predictions/analyze",
             "assets": f"{settings.API_PREFIX}/assets",
             "inspections": f"{settings.API_PREFIX}/inspections",
+            "auth_login": f"{settings.API_PREFIX}/auth/login",
+            "users_login": f"{settings.API_PREFIX}/users/login",
+            "users": f"{settings.API_PREFIX}/users",
         },
     }

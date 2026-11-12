@@ -1,8 +1,50 @@
 // API Integration Layer connecting Frontend with FastAPI Backend
 import { mock } from './mockApi.js';
+import {axios} from "axios";
+
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '';
 export const isMock = !BASE;
+
+const apiClient = axios.create({
+    baseURL: BASE,
+    headers: {
+        "Content-Type": "application/json",
+    },
+});
+
+
+// Request Interceptor: Attach JWT Token
+apiClient.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem("infrascan_token");
+
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+
+        return config;
+    },
+    (error) => Promise.reject(error)
+);
+
+// Response Interceptor: Handle API Errors
+apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        const errorMsg =
+            error.response?.data?.detail ||
+            error.message ||
+            "Something went wrong";
+
+        return Promise.reject(new Error(
+            typeof errorMsg === "string"
+                ? errorMsg
+                : JSON.stringify(errorMsg)
+        ));
+    }
+);
+
 
 async function http(path, { method = 'GET', body } = {}) {
   const form = body instanceof FormData;
@@ -57,6 +99,7 @@ const use = (real, fake) => {
 };
 
 export const api = {
+  baseURL: BASE,
   login: use(c => http('/auth/login', { method: 'POST', body: c }), mock.login),
   register: use(u => http('/auth/register', { method: 'POST', body: u }), mock.register),
   getAssets: use(() => http('/assets'), mock.getAssets),
