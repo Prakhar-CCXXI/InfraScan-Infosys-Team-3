@@ -1,7 +1,6 @@
 // API Integration Layer connecting Frontend with FastAPI Backend
 import { mock } from './mockApi.js';
-import {axios} from "axios";
-
+import axios from "axios";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '';
 export const isMock = !BASE;
@@ -106,7 +105,22 @@ export const api = {
   getAsset: (id) => use(() => http(`/assets/${id}`), () => mock.getAsset(id))(),
   saveAsset: (a) => use(() => http(a.id ? `/assets/${a.id}` : '/assets', { method: a.id ? 'PUT' : 'POST', body: a }), () => mock.saveAsset(a))(),
   getUsers: use(() => http('/users'), mock.getUsers),
-  getInspections: use(() => http('/inspections'), mock.getInspections),
+  getInspections: use(async () => {
+  const rows = await http('/inspections');
+
+  return rows.map(x => ({
+    ...x,
+    id: String(x.id),
+    assetId: x.asset_id != null
+      ? `INF-${String(x.asset_id).padStart(3, '0')}`
+      : x.infrastructure_name,
+    date: x.inspection_date || '',
+    severity: x.severity || 'Not analyzed',
+    images: x.images ?? 0,
+    defects: x.defects ?? 0,
+    priority: x.priority || 'Pending analysis',
+  }));
+}, mock.getInspections),
   createInspection: (i) => use(() => http('/inspections', { method: 'POST', body: i }), () => mock.createInspection(i))(),
   
   // Real backend image upload & AI inference
