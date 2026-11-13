@@ -1,0 +1,17 @@
+﻿fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+sqlalchemy[asyncio]>=2.0,<3.0
+greenlet>=3.0.0
+pydantic>=2.7,<3.0
+pydantic-settings>=2.2,<3.0
+psycopg[binary]
+asyncpg>=0.29.0
+python-multipart>=0.0.9
+aiofiles>=23.2.0
+pillow>=10.2.0
+bcrypt>=4.0.0
+email-validator>=2.0.0
+pyjwt>=2.8.0
+numpy>=1.26,<3
+scipy>=1.12,<2
+scikit-image>=0.22,<1
