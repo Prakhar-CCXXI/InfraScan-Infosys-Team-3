@@ -18,8 +18,8 @@ Crack500, labels converted from masks to YOLO polygons; official split preserved
 Ultralytics YOLO11n-Seg (pretrained yolo11n-seg.pt), 1 class
 
 ## Checkpoint
-- **path**: NEEDS VERIFICATION
-- **sha256**: NEEDS VERIFICATION
+- **path**: Crack500-YOLO-Segmentation/checkpoints/best.pt
+- **sha256**: 98e725d194678f0f58f800d2e2ca91b33c2c48a24c17465e7657eba6179cad69
 
 ## Training / configuration
 - **script**: ml/hybrid/train_yolo_seg.py

@@ -33,7 +33,7 @@ MODELS = [
   evidence="PARTLY VERIFIED: label conversion report and validation/test metrics from files; weights hash, training args and detection mAP not provided",
   task="Crack localisation (boxes, confidence) and coarse instance masks", dataset="Crack500, labels converted from masks to YOLO polygons; official split preserved",
   architecture="Ultralytics YOLO11n-Seg (pretrained yolo11n-seg.pt), 1 class",
-  checkpoint=dict(path=NV, sha256=NV), training=dict(script="ml/hybrid/train_yolo_seg.py", defaults="100 epochs, imgsz 640, batch 16, patience 20, seed 42, cosine LR (check args.yaml: " + NV + ")",
+  checkpoint=dict(path="Crack500-YOLO-Segmentation/checkpoints/best.pt", sha256="98e725d194678f0f58f800d2e2ca91b33c2c48a24c17465e7657eba6179cad69"), training=dict(script="ml/hybrid/train_yolo_seg.py", defaults="100 epochs, imgsz 640, batch 16, patience 20, seed 42, cosine LR (check args.yaml: " + NV + ")",
         label_conversion=dict(polygons=7258, dropped_tiny_components=1484, polygon_vs_mask_iou_mean=0.9748, polygon_vs_mask_iou_p05=0.9379, share_below_0_8=0.0077)),
   operating_point=dict(yolo_conf=0.25, chosen_on="validation only"),
   results=dict(validation=dict(dice=0.8077, iou=0.6774, precision=0.7946, recall=0.8212, mean_image_dice=0.7412),
