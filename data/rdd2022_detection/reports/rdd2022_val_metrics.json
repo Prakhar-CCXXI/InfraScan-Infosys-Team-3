@@ -1,0 +1,53 @@
+{
+  "weights": "rdd2022_detection\\checkpoints\\yolo11s_rdd2022_s42\\best.pt",
+  "weights_sha256": "848f619cdebacd7ae0b63a585bdec50939244cb520adc8b20b3c129a33c8bf43",
+  "split": "val",
+  "imgsz": 640,
+  "gt_boxes": {
+    "D00": 262,
+    "D10": 17,
+    "D20": 308,
+    "D40": 481
+  },
+  "overall": {
+    "precision": 0.44953781643516105,
+    "recall": 0.3504564413193094,
+    "mAP50": 0.3554946410690781,
+    "mAP50_95": 0.15436120130773306
+  },
+  "per_class": {
+    "D00": {
+      "precision": 0.4639688713370311,
+      "recall": 0.3435827364459735,
+      "mAP50": 0.29816774899877224,
+      "mAP50_95": 0.1216249039246581,
+      "gt_boxes": 262,
+      "reliable": true
+    },
+    "D10": {
+      "precision": 0.27965808946311177,
+      "recall": 0.058823529411764705,
+      "mAP50": 0.08313312289652267,
+      "mAP50_95": 0.04468478115367751,
+      "gt_boxes": 17,
+      "reliable": false
+    },
+    "D20": {
+      "precision": 0.5322500488594026,
+      "recall": 0.6168831168831169,
+      "mAP50": 0.6243836391644586,
+      "mAP50_95": 0.30037173108675985,
+      "gt_boxes": 308,
+      "reliable": true
+    },
+    "D40": {
+      "precision": 0.5222742560810987,
+      "recall": 0.38253638253638256,
+      "mAP50": 0.4162940532165586,
+      "mAP50_95": 0.15076338906583678,
+      "gt_boxes": 481,
+      "reliable": true
+    }
+  },
+  "note": "classes with fewer than 30 ground-truth boxes are flagged reliable=false; use val only for choices, test only for reporting"
+}
