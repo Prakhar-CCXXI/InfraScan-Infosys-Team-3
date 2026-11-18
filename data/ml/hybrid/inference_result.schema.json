@@ -1,0 +1,147 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "infrascan/inference_result.schema.json",
+  "title": "InfraScan AI inference result",
+  "description": "Output of the AI/ML pipeline for ONE image (produced by ml/hybrid/inference_output.py). The backend adds its own identifiers, stores the mask/overlay files and fills the 'uri' fields. All coordinates and measurements are in PIXELS of the processed image (see coordinate_frame); there are no physical units unless a calibration is supplied. Results are advisory and need qualified engineering review.",
+  "oneOf": [{ "$ref": "#/definitions/ok" }, { "$ref": "#/definitions/failed" }],
+  "definitions": {
+    "model_ref": {
+      "type": "object", "additionalProperties": false, "required": ["role", "id", "sha256"],
+      "properties": {
+        "role": { "enum": ["segmentation", "localisation", "classification"] },
+        "id": { "type": "string", "description": "Id in ml/registry/model_registry.json; the version is part of the id." },
+        "sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "rel_error": {
+      "type": "object", "additionalProperties": false, "required": ["median_signed", "iqr"],
+      "properties": {
+        "median_signed": { "type": "number", "description": "Median of (predicted - reference) / reference on validation images." },
+        "iqr": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[25th, 75th percentile] of the signed relative error." }
+      }
+    },
+    "ok": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "schema_version", "pipeline", "models", "coordinate_frame", "detections", "mask", "measurements", "measurement_uncertainty", "warnings", "timing_ms", "disclaimer"],
+      "properties": {
+        "status": { "const": "ok" },
+        "schema_version": { "const": "infrascan-inference-0.1" },
+        "pipeline": {
+          "type": "object", "additionalProperties": false, "required": ["name", "mode", "config"],
+          "properties": {
+            "name": { "enum": ["unet_only", "hybrid_roi_gated", "hybrid_dual_threshold"] },
+            "mode": { "enum": ["unet_full_image", "roi_crops", "full_image_dual_threshold", "no_detection_empty", "no_detection_strict_unet"] },
+            "config": {
+              "type": "object", "additionalProperties": false, "required": ["unet_threshold"],
+              "properties": {
+                "unet_threshold": { "type": "number", "minimum": 0, "maximum": 1 },
+                "yolo_conf": { "type": "number", "minimum": 0, "maximum": 1 },
+                "gate": { "enum": ["box", "mask"] },
+                "margin": { "type": "integer", "minimum": 0 },
+                "t_in": { "type": "number", "minimum": 0, "maximum": 1 },
+                "t_out": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+              }
+            }
+          }
+        },
+        "models": { "type": "array", "items": { "$ref": "#/definitions/model_ref" }, "minItems": 1 },
+        "coordinate_frame": {
+          "type": "object", "additionalProperties": false, "required": ["width", "height", "origin", "resize_scale_to_original"],
+          "properties": {
+            "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 },
+            "origin": { "const": "top-left, x right, y down" },
+            "resize_scale_to_original": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "processed / original longest side (from the preprocessing result). Divide coordinates by this to map to the original image." }
+          }
+        },
+        "detections": {
+          "type": "array",
+          "description": "YOLO crack regions (empty for unet_only or when YOLO finds nothing). Confidence is the detector's score, not a calibrated probability.",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["id", "box_xyxy", "confidence", "source"],
+            "properties": {
+              "id": { "type": "integer", "minimum": 0 },
+              "box_xyxy": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 4, "maxItems": 4, "description": "[x0, y0, x1, y1] with x1 > x0 and y1 > y0." },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+              "source": { "const": "yolo" }
+            }
+          }
+        },
+        "mask": {
+          "type": "object", "additionalProperties": false, "required": ["encoding", "uri", "width", "height", "positive_pixels", "area_fraction"],
+          "properties": {
+            "encoding": { "const": "png_0_255", "description": "Single-channel PNG, 255 = crack, same size as coordinate_frame." },
+            "uri": { "type": ["string", "null"], "description": "Filled by the backend after storing the PNG." },
+            "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 },
+            "positive_pixels": { "type": "integer", "minimum": 0 },
+            "area_fraction": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "overlay": { "type": "object", "additionalProperties": false, "required": ["uri"], "properties": { "uri": { "type": ["string", "null"] } } },
+        "measurements": {
+          "type": "object", "additionalProperties": false,
+          "required": ["unit", "reference_frame", "calibration", "length_px", "mean_width_px", "max_width_px", "area_px", "crack_density_percent", "orientation_deg", "n_components", "n_branch_points", "n_endpoints"],
+          "properties": {
+            "unit": { "enum": ["px", "mm"], "description": "'mm' only when calibration.mm_per_px is set; the *_px fields are always present." },
+            "reference_frame": { "const": "processed_image" },
+            "calibration": {
+              "type": "object", "additionalProperties": false, "required": ["mm_per_px", "source"],
+              "properties": { "mm_per_px": { "type": ["number", "null"], "exclusiveMinimum": 0 }, "source": { "type": ["string", "null"], "description": "e.g. reference object, camera calibration; required when mm_per_px is set." } }
+            },
+            "length_px": { "type": "number", "minimum": 0, "description": "Skeleton path length." },
+            "mean_width_px": { "type": "number", "minimum": 0 }, "max_width_px": { "type": "number", "minimum": 0 },
+            "area_px": { "type": "integer", "minimum": 0 },
+            "crack_density_percent": { "type": "number", "minimum": 0, "maximum": 100, "description": "100 * crack area / image area (of the processed image)." },
+            "orientation_deg": { "type": ["number", "null"], "minimum": 0, "exclusiveMaximum": 180, "description": "Principal axis angle from the +x axis, counter-clockwise as displayed; null when undefined." },
+            "n_components": { "type": "integer", "minimum": 0 }, "n_branch_points": { "type": "integer", "minimum": 0 }, "n_endpoints": { "type": "integer", "minimum": 0 },
+            "length_mm": { "type": "number", "minimum": 0 }, "mean_width_mm": { "type": "number", "minimum": 0 },
+            "max_width_mm": { "type": "number", "minimum": 0 }, "area_mm2": { "type": "number", "minimum": 0 }
+          },
+          "if": { "properties": { "calibration": { "properties": { "mm_per_px": { "type": "number" } }, "required": ["mm_per_px"] } }, "required": ["calibration"] },
+          "then": { "required": ["length_mm", "mean_width_mm", "max_width_mm", "area_mm2"], "properties": { "unit": { "const": "mm" } } },
+          "else": { "properties": { "unit": { "const": "px" } } }
+        },
+        "measurement_uncertainty": {
+          "type": "object", "additionalProperties": false,
+          "required": ["basis", "reference", "n_validation_images", "relative_error", "orientation_error_deg", "width_reliability", "notes"],
+          "properties": {
+            "basis": { "type": "string" },
+            "reference": { "const": "annotated_masks_not_physical_truth" },
+            "n_validation_images": { "type": "integer", "minimum": 1 },
+            "relative_error": {
+              "type": "object", "additionalProperties": false, "required": ["length", "mean_width", "max_width", "area"],
+              "properties": { "length": { "$ref": "#/definitions/rel_error" }, "mean_width": { "$ref": "#/definitions/rel_error" }, "max_width": { "$ref": "#/definitions/rel_error" }, "area": { "$ref": "#/definitions/rel_error" } }
+            },
+            "orientation_error_deg": {
+              "type": "object", "additionalProperties": false, "required": ["median", "within_10deg_fraction"],
+              "properties": { "median": { "type": "number", "minimum": 0 }, "within_10deg_fraction": { "type": "number", "minimum": 0, "maximum": 1 } }
+            },
+            "width_reliability": { "enum": ["normal", "low_thin_crack", "unknown"], "description": "'low_thin_crack': mean width (normalised to a 640 px longest side) is below 15.23 px, the lower tercile of predicted widths on Crack500 validation; width errors there are large (median +36%). 'normal': not in the thin tercile, still approximate (+7% to +15% bias). 'unknown': no mask pixels, or flag not configured." },
+            "notes": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "classification": {
+          "type": ["object", "null"], "additionalProperties": false, "required": ["model_id", "scope", "probability", "threshold", "decision"],
+          "description": "RESERVED. Not produced by the current pipeline (the patch classifier needs a tiling/aggregation policy first).",
+          "properties": { "model_id": { "type": "string" }, "scope": { "enum": ["patch", "image"] }, "probability": { "type": "number", "minimum": 0, "maximum": 1 },
+                          "threshold": { "type": "number" }, "decision": { "type": "boolean" } }
+        },
+        "warnings": { "type": "array", "uniqueItems": true, "items": { "enum": ["NO_YOLO_DETECTION", "EMPTY_MASK", "LOW_LIGHT", "POSSIBLE_BLUR", "PIXEL_UNITS_ONLY"] } },
+        "timing_ms": {
+          "type": "object", "additionalProperties": false, "required": ["yolo_ms", "unet_fuse_ms", "total_ms"],
+          "properties": { "yolo_ms": { "type": ["number", "null"], "minimum": 0 }, "unet_fuse_ms": { "type": "number", "minimum": 0 }, "total_ms": { "type": "number", "minimum": 0 } }
+        },
+        "disclaimer": { "type": "string" }
+      }
+    },
+    "failed": {
+      "type": "object", "additionalProperties": false, "required": ["status", "schema_version", "error"],
+      "properties": {
+        "status": { "const": "error" }, "schema_version": { "const": "infrascan-inference-0.1" },
+        "error": {
+          "type": "object", "additionalProperties": false, "required": ["code", "message"],
+          "properties": { "code": { "enum": ["MODEL_UNAVAILABLE", "INFERENCE_FAILED", "INVALID_INPUT"] }, "message": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

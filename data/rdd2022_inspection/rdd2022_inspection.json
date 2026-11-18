@@ -1,0 +1,189 @@
+{
+  "root": "RDD2022_India",
+  "file_extensions": {
+    ".jpg": 9665,
+    ".xml": 7706
+  },
+  "files_per_folder": {
+    "test/images": 1959,
+    "train/annotations/xmls": 7706,
+    "train/images": 7706
+  },
+  "images_per_split": {
+    "test": 1959,
+    "train": 7706
+  },
+  "annotation_files": {
+    "xml": 7706,
+    "txt": 0,
+    "json": 0
+  },
+  "annotation_format_detected": "pascal_voc_xml",
+  "annotation_sample_raw": "<annotation>\n  <folder>images</folder>\n  <filename>India_000000.jpg</filename>\n  <size>\n    <depth>3</depth>\n    <width>720</width>\n    <height>720</height>\n  </size>\n</annotation>",
+  "annotation_splits": {
+    "train": 7706
+  },
+  "unreadable_images": [],
+  "n_unreadable_images": 0,
+  "image_sizes_by_split": {
+    "test": {
+      "720x720": 1959
+    },
+    "train": {
+      "720x720": 7706
+    }
+  },
+  "xml_parse_errors": [],
+  "n_xml_parse_errors": 0,
+  "annotated_images": 7706,
+  "annotated_boxes": 8203,
+  "pairing_train": {
+    "images": 7706,
+    "annotations": 7706,
+    "images_without_annotation": 0,
+    "annotations_without_image": 0,
+    "examples_images_without_annotation": []
+  },
+  "xml_vs_actual_image_size_mismatch": 0,
+  "classes": {
+    "D00": {
+      "boxes": 1555,
+      "share_boxes": 0.1896,
+      "images": 1109,
+      "median_area_rel": 0.0174,
+      "median_w": 79.0,
+      "median_h": 122.0,
+      "median_aspect": 0.6937,
+      "assumed_meaning_VERIFY": "longitudinal crack"
+    },
+    "D01": {
+      "boxes": 179,
+      "share_boxes": 0.0218,
+      "images": 118,
+      "median_area_rel": 0.0169,
+      "median_w": 85.0,
+      "median_h": 103.0,
+      "median_aspect": 0.8095,
+      "assumed_meaning_VERIFY": "unknown code"
+    },
+    "D0w0": {
+      "boxes": 1,
+      "share_boxes": 0.0001,
+      "images": 1,
+      "median_area_rel": 0.0384,
+      "median_w": 115.0,
+      "median_h": 173.0,
+      "median_aspect": 0.6647,
+      "assumed_meaning_VERIFY": "unknown code"
+    },
+    "D10": {
+      "boxes": 68,
+      "share_boxes": 0.0083,
+      "images": 60,
+      "median_area_rel": 0.0178,
+      "median_w": 237.5,
+      "median_h": 45.5,
+      "median_aspect": 5.4492,
+      "assumed_meaning_VERIFY": "transverse crack"
+    },
+    "D11": {
+      "boxes": 45,
+      "share_boxes": 0.0055,
+      "images": 36,
+      "median_area_rel": 0.0319,
+      "median_w": 318.0,
+      "median_h": 54.0,
+      "median_aspect": 5.8542,
+      "assumed_meaning_VERIFY": "unknown code"
+    },
+    "D20": {
+      "boxes": 2021,
+      "share_boxes": 0.2464,
+      "images": 1758,
+      "median_area_rel": 0.0956,
+      "median_w": 291.0,
+      "median_h": 164.0,
+      "median_aspect": 1.8012,
+      "assumed_meaning_VERIFY": "alligator crack"
+    },
+    "D40": {
+      "boxes": 3187,
+      "share_boxes": 0.3885,
+      "images": 1530,
+      "median_area_rel": 0.0087,
+      "median_w": 88.0,
+      "median_h": 50.0,
+      "median_aspect": 1.7241,
+      "assumed_meaning_VERIFY": "pothole"
+    },
+    "D43": {
+      "boxes": 57,
+      "share_boxes": 0.0069,
+      "images": 57,
+      "median_area_rel": 0.0843,
+      "median_w": 443.0,
+      "median_h": 96.0,
+      "median_aspect": 4.6835,
+      "assumed_meaning_VERIFY": "unknown code"
+    },
+    "D44": {
+      "boxes": 1062,
+      "share_boxes": 0.1295,
+      "images": 869,
+      "median_area_rel": 0.0134,
+      "median_w": 82.0,
+      "median_h": 87.0,
+      "median_aspect": 0.9451,
+      "assumed_meaning_VERIFY": "unknown code"
+    },
+    "D50": {
+      "boxes": 28,
+      "share_boxes": 0.0034,
+      "images": 28,
+      "median_area_rel": 0.0066,
+      "median_w": 93.0,
+      "median_h": 37.0,
+      "median_aspect": 2.407,
+      "assumed_meaning_VERIFY": "unknown code"
+    }
+  },
+  "class_names_raw": [
+    "D00",
+    "D01",
+    "D0w0",
+    "D10",
+    "D11",
+    "D20",
+    "D40",
+    "D43",
+    "D44",
+    "D50"
+  ],
+  "imbalance_ratio_max_over_min_boxes": 3187.0,
+  "boxes_per_annotated_image": {
+    "mean": 2.167239101717305,
+    "median": 2.0,
+    "max": 14
+  },
+  "images_with_zero_boxes": 3921,
+  "images_with_2plus_classes": 1493,
+  "invalid_boxes": 0,
+  "boxes_outside_image": 0,
+  "tiny_boxes_area_rel_below_0.001": 33,
+  "duplicate_identical_boxes": 0,
+  "filename_numeric_suffix_range": [
+    0,
+    9891
+  ],
+  "example_filenames": [
+    "India_000000.jpg",
+    "India_000001.jpg",
+    "India_000002.jpg"
+  ],
+  "duplicate_check": {
+    "hash_groups_with_multiple_images": 7,
+    "groups_spanning_train_and_test": 2,
+    "note": "identical 64-bit dHash = near-duplicate; train/test overlap would invalidate evaluation on the test images"
+  },
+  "note_on_test_split": "If the test split has no annotation files, it cannot be used for evaluation here; a validation/test split must be carved out of train (keep near-duplicate and adjacent frames together)."
+}

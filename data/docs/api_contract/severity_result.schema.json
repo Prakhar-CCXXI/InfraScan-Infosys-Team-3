@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "infrascan/severity_result.schema.json",
+  "title": "InfraScan severity result (advisory)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "engine_version",
+    "config_id",
+    "config_status",
+    "category",
+    "label",
+    "score_0_100",
+    "suggested_priority",
+    "engineering_review_required",
+    "confidence",
+    "flags",
+    "contributions",
+    "skipped_features",
+    "overrides_applied",
+    "explanation",
+    "disclaimer"
+  ],
+  "properties": {
+    "status": {
+      "const": "ok"
+    },
+    "engine_version": {
+      "type": "string"
+    },
+    "config_id": {
+      "type": "string"
+    },
+    "config_status": {
+      "enum": [
+        "UNVALIDATED_PLACEHOLDER",
+        "VALIDATED"
+      ]
+    },
+    "category": {
+      "enum": [
+        "NONE",
+        "MINOR",
+        "MODERATE",
+        "SEVERE",
+        "CRITICAL"
+      ]
+    },
+    "label": {
+      "enum": [
+        "No Visible Damage",
+        "Minor Damage",
+        "Moderate Damage",
+        "Severe Damage",
+        "Critical / Requires Urgent Engineering Review"
+      ]
+    },
+    "score_0_100": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "suggested_priority": {
+      "enum": [
+        "Routine Monitoring",
+        "Low Priority",
+        "Medium Priority",
+        "High Priority",
+        "Urgent Engineering Review"
+      ]
+    },
+    "engineering_review_required": {
+      "type": "boolean"
+    },
+    "confidence": {
+      "enum": [
+        "LOW",
+        "MEDIUM"
+      ]
+    },
+    "flags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "RELATIVE_METRICS_ONLY",
+          "THRESHOLDS_NOT_VALIDATED",
+          "UNCALIBRATED_SCALE",
+          "INPUT_QUALITY_WARNING",
+          "DETECTOR_FOUND_NOTHING"
+        ]
+      }
+    },
+    "contributions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "feature",
+          "label",
+          "value",
+          "points",
+          "max_points",
+          "weight",
+          "weighted_points",
+          "provenance"
+        ],
+        "properties": {
+          "feature": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "points": {
+            "type": "number"
+          },
+          "max_points": {
+            "type": "number"
+          },
+          "weight": {
+            "type": "number"
+          },
+          "weighted_points": {
+            "type": "number"
+          },
+          "provenance": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "skipped_features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "feature",
+          "reason"
+        ],
+        "properties": {
+          "feature": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "overrides_applied": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "min_category",
+          "feature",
+          "value",
+          "gte"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "min_category": {
+            "type": "string"
+          },
+          "feature": {
+            "type": "string"
+          },
+          "value": {
+            "type": "number"
+          },
+          "gte": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "explanation": {
+      "type": "string"
+    },
+    "disclaimer": {
+      "type": "string"
+    }
+  }
+}

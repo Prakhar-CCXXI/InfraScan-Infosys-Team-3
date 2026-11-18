@@ -1,0 +1,127 @@
+{
+  "status": "ok",
+  "schema_version": "infrascan-inference-0.1",
+  "pipeline": {
+    "name": "hybrid_dual_threshold",
+    "mode": "full_image_dual_threshold",
+    "config": {
+      "yolo_conf": 0.1,
+      "gate": "mask",
+      "margin": 8,
+      "t_in": 0.4,
+      "t_out": 0.9,
+      "unet_threshold": 0.4
+    }
+  },
+  "models": [
+    {
+      "role": "segmentation",
+      "id": "crack500-unet-resnet34-v1.0",
+      "sha256": "684484b1f408b3e3af18115613f9713a8ec8d62b5f697976a877a2614abc2163"
+    },
+    {
+      "role": "localisation",
+      "id": "crack500-yolo11n-seg-v0.1",
+      "sha256": "98e725d194678f0f58f800d2e2ca91b33c2c48a24c17465e7657eba6179cad69"
+    }
+  ],
+  "coordinate_frame": {
+    "width": 640,
+    "height": 360,
+    "origin": "top-left, x right, y down",
+    "resize_scale_to_original": 0.4267
+  },
+  "detections": [
+    {
+      "id": 0,
+      "box_xyxy": [
+        55.2,
+        55.0,
+        525.9,
+        305.1
+      ],
+      "confidence": 0.8123,
+      "source": "yolo"
+    }
+  ],
+  "mask": {
+    "encoding": "png_0_255",
+    "uri": null,
+    "width": 640,
+    "height": 360,
+    "positive_pixels": 2855,
+    "area_fraction": 0.012391
+  },
+  "measurements": {
+    "unit": "px",
+    "reference_frame": "processed_image",
+    "calibration": {
+      "mm_per_px": null,
+      "source": null
+    },
+    "length_px": 564.87,
+    "mean_width_px": 4.62,
+    "max_width_px": 5.0,
+    "area_px": 2855,
+    "crack_density_percent": 1.2391,
+    "orientation_deg": 23.05,
+    "n_components": 1,
+    "n_branch_points": 0,
+    "n_endpoints": 2
+  },
+  "measurement_uncertainty": {
+    "basis": "Crack500 validation split, U-Net masks (threshold 0.4) vs annotated masks, pixel units; relative error = (predicted - reference) / reference",
+    "reference": "annotated_masks_not_physical_truth",
+    "n_validation_images": 348,
+    "relative_error": {
+      "length": {
+        "median_signed": -0.1072,
+        "iqr": [
+          -0.2411,
+          0.0049
+        ]
+      },
+      "mean_width": {
+        "median_signed": 0.1681,
+        "iqr": [
+          0.0079,
+          0.3611
+        ]
+      },
+      "max_width": {
+        "median_signed": 0.0684,
+        "iqr": [
+          -0.0717,
+          0.2333
+        ]
+      },
+      "area": {
+        "median_signed": 0.0623,
+        "iqr": [
+          -0.0762,
+          0.2144
+        ]
+      }
+    },
+    "orientation_error_deg": {
+      "median": 1.07,
+      "within_10deg_fraction": 0.886
+    },
+    "width_reliability": "unknown",
+    "notes": [
+      "Length tends to be underestimated and mean width overestimated, even for good segmentations.",
+      "Thin-crack widths are unreliable (median +36%); area and orientation are the most robust measures.",
+      "Segmentation failures (about 6% of validation images) make all geometry meaningless."
+    ]
+  },
+  "warnings": [
+    "POSSIBLE_BLUR",
+    "PIXEL_UNITS_ONLY"
+  ],
+  "timing_ms": {
+    "yolo_ms": 18.4,
+    "unet_fuse_ms": 38.1,
+    "total_ms": 56.5
+  },
+  "disclaimer": "Research prototype for inspection support. Outputs require qualified engineering review; not a structural safety assessment."
+}

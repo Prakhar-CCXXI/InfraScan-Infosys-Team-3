@@ -1,0 +1,205 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "infrascan/severity_config.schema.json",
+  "title": "InfraScan severity engine configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "config_id",
+    "status",
+    "description",
+    "reference_long_side_px",
+    "score_cuts",
+    "priority_map",
+    "features",
+    "overrides"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "infrascan-severity-config-0.1"
+    },
+    "config_id": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "UNVALIDATED_PLACEHOLDER",
+        "VALIDATED"
+      ],
+      "description": "Set VALIDATED only after an engineer has approved the thresholds."
+    },
+    "description": {
+      "type": "string"
+    },
+    "reference_long_side_px": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "score_cuts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "MINOR_max",
+        "MODERATE_max",
+        "SEVERE_max"
+      ],
+      "properties": {
+        "MINOR_max": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100
+        },
+        "MODERATE_max": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100
+        },
+        "SEVERE_max": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 100
+        }
+      }
+    },
+    "priority_map": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "NONE",
+        "MINOR",
+        "MODERATE",
+        "SEVERE",
+        "CRITICAL"
+      ],
+      "properties": {
+        "NONE": {
+          "type": "string"
+        },
+        "MINOR": {
+          "type": "string"
+        },
+        "MODERATE": {
+          "type": "string"
+        },
+        "SEVERE": {
+          "type": "string"
+        },
+        "CRITICAL": {
+          "type": "string"
+        }
+      }
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "weight",
+          "requires_calibration",
+          "provenance",
+          "bins"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "crack_density_percent",
+              "mean_width_norm640",
+              "n_branch_points",
+              "max_width_mm",
+              "class_area_share.D00",
+              "class_area_share.D10",
+              "class_area_share.D20",
+              "class_area_share.D40",
+              "class_count.D00",
+              "class_count.D10",
+              "class_count.D20",
+              "class_count.D40"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0
+          },
+          "requires_calibration": {
+            "type": "boolean",
+            "description": "Active only when a calibrated mm_per_px is supplied (use for *_mm features)."
+          },
+          "provenance": {
+            "type": "string",
+            "description": "Where the thresholds come from: placeholder, a data quantile, or an engineering standard/engineer."
+          },
+          "bins": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "max",
+                "points"
+              ],
+              "properties": {
+                "max": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "points": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            },
+            "description": "Ascending upper bounds (exclusive); the last bin has max=null; points non-decreasing. null = feature not configured."
+          }
+        }
+      }
+    },
+    "overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "feature",
+          "gte",
+          "min_category",
+          "provenance"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "feature": {
+            "type": "string"
+          },
+          "gte": {
+            "type": "number"
+          },
+          "min_category": {
+            "enum": [
+              "MINOR",
+              "MODERATE",
+              "SEVERE",
+              "CRITICAL"
+            ]
+          },
+          "provenance": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

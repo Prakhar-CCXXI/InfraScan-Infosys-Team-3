@@ -1,0 +1,30 @@
+{
+  "schema_version": "infrascan-severity-config-0.1",
+  "config_id": "relative-v0.1",
+  "status": "UNVALIDATED_PLACEHOLDER",
+  "description": "Rule-based, relative (uncalibrated) severity scoring. Thresholds are NOT engineering standards and were not validated by an engineer; only the width cut-points come from data (terciles of predicted mean width on Crack500 validation). Millimetre features are present but inactive until thresholds and a calibrated scale are supplied.",
+  "reference_long_side_px": 640,
+  "score_cuts": { "MINOR_max": 25, "MODERATE_max": 55, "SEVERE_max": 80 },
+  "priority_map": { "NONE": "Routine Monitoring", "MINOR": "Low Priority", "MODERATE": "Medium Priority", "SEVERE": "High Priority", "CRITICAL": "Urgent Engineering Review" },
+  "features": [
+    { "id": "crack_density_percent", "label": "crack area density (%)", "weight": 3, "requires_calibration": false, "provenance": "placeholder",
+      "bins": [ { "max": 0.2, "points": 0 }, { "max": 1, "points": 1 }, { "max": 3, "points": 2 }, { "max": 8, "points": 3 }, { "max": null, "points": 4 } ] },
+    { "id": "mean_width_norm640", "label": "mean crack width, normalised to a 640 px longest side (px)", "weight": 2, "requires_calibration": false, "provenance": "quantile: predicted mean width terciles, Crack500 validation (15.23, 24.65)",
+      "bins": [ { "max": 15.23, "points": 1 }, { "max": 24.65, "points": 2 }, { "max": null, "points": 3 } ] },
+    { "id": "n_branch_points", "label": "skeleton branch points", "weight": 1, "requires_calibration": false, "provenance": "placeholder",
+      "bins": [ { "max": 2, "points": 0 }, { "max": 6, "points": 1 }, { "max": 15, "points": 2 }, { "max": null, "points": 3 } ] },
+    { "id": "class_area_share.D20", "label": "alligator-crack area share of the image", "weight": 3, "requires_calibration": false, "provenance": "placeholder",
+      "bins": [ { "max": 0.0001, "points": 0 }, { "max": 0.02, "points": 1 }, { "max": 0.08, "points": 2 }, { "max": 0.2, "points": 3 }, { "max": null, "points": 4 } ] },
+    { "id": "class_area_share.D40", "label": "D40 (other corruption, e.g. pothole) area share of the image", "weight": 3, "requires_calibration": false, "provenance": "placeholder",
+      "bins": [ { "max": 0.0001, "points": 0 }, { "max": 0.01, "points": 1 }, { "max": 0.05, "points": 2 }, { "max": 0.15, "points": 3 }, { "max": null, "points": 4 } ] },
+    { "id": "class_count.D00", "label": "longitudinal-crack detections", "weight": 1, "requires_calibration": false, "provenance": "placeholder",
+      "bins": [ { "max": 1, "points": 0 }, { "max": 3, "points": 1 }, { "max": 6, "points": 2 }, { "max": null, "points": 3 } ] },
+    { "id": "class_count.D10", "label": "transverse-crack detections", "weight": 1, "requires_calibration": false, "provenance": "placeholder",
+      "bins": [ { "max": 1, "points": 0 }, { "max": 3, "points": 1 }, { "max": 6, "points": 2 }, { "max": null, "points": 3 } ] },
+    { "id": "max_width_mm", "label": "maximum crack width (mm)", "weight": 3, "requires_calibration": true, "provenance": "not configured: needs engineer-defined thresholds and a calibrated scale", "bins": null }
+  ],
+  "overrides": [
+    { "id": "large_alligator_area", "feature": "class_area_share.D20", "gte": 0.3, "min_category": "SEVERE", "provenance": "placeholder" },
+    { "id": "large_d40_area", "feature": "class_area_share.D40", "gte": 0.2, "min_category": "SEVERE", "provenance": "placeholder" }
+  ]
+}

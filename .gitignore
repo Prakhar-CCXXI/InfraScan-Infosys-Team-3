@@ -18,8 +18,7 @@ uploads/*
 !uploads/.gitkeep
 node_modules/
 frontend/dist/
-data/
-
 backend/ml
-
-
+data/RDD2022_India/
+data/rdd2022_yolo/
+*.zip

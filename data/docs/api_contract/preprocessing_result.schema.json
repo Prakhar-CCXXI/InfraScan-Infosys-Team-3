@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "infrascan/preprocessing_result.schema.json",
+  "title": "InfraScan image pre-processing result",
+  "description": "Metadata produced by ml/preprocessing/image_preprocessing.py (PreprocessResult.to_dict() or ImageValidationError.to_dict()). Image arrays are never part of this structure. Quality flags are advisory only.",
+  "oneOf": [{ "$ref": "#/definitions/accepted" }, { "$ref": "#/definitions/rejected" }],
+  "definitions": {
+    "dimensions": {
+      "type": "object", "additionalProperties": false, "required": ["width", "height"],
+      "properties": { "width": { "type": "integer", "minimum": 1 }, "height": { "type": "integer", "minimum": 1 } }
+    },
+    "accepted": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "module_version", "file", "original_dimensions", "processed_dimensions", "resize_scale", "quality_checks", "preprocessing"],
+      "properties": {
+        "status": { "const": "ok" },
+        "module_version": { "type": "string", "examples": ["preprocessing-0.1"] },
+        "file": {
+          "type": "object", "additionalProperties": false, "required": ["size_bytes", "declared_content_type", "detected_format", "sha256"],
+          "properties": {
+            "size_bytes": { "type": "integer", "minimum": 1 },
+            "declared_content_type": { "type": ["string", "null"] },
+            "detected_format": { "enum": ["jpeg", "png", "webp", null] },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Hash of the uploaded bytes; use for duplicate detection." }
+          }
+        },
+        "original_dimensions": { "$ref": "#/definitions/dimensions" },
+        "processed_dimensions": { "$ref": "#/definitions/dimensions" },
+        "resize_scale": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "processed / original longest side; 1 = not resized. Model outputs are in processed-image pixel coordinates." },
+        "quality_checks": {
+          "type": "object", "additionalProperties": false,
+          "required": ["mean_brightness_0_255", "laplacian_blur_indicator", "flags", "flag_codes", "thresholds", "blur_normalize_side"],
+          "properties": {
+            "mean_brightness_0_255": { "type": "number", "minimum": 0, "maximum": 255 },
+            "laplacian_blur_indicator": { "type": "number", "minimum": 0, "description": "Variance of the Laplacian; low values may indicate blur OR smooth, featureless surfaces." },
+            "flags": { "type": "array", "items": { "type": "string" }, "description": "Human-readable advisory messages." },
+            "flag_codes": { "type": "array", "items": { "enum": ["LOW_LIGHT", "POSSIBLE_BLUR"] }, "uniqueItems": true },
+            "thresholds": {
+              "type": "object", "additionalProperties": false, "required": ["low_light", "blur"],
+              "properties": { "low_light": { "type": "number" }, "blur": { "type": "number" } }
+            },
+            "blur_normalize_side": { "type": ["integer", "null"], "minimum": 1 }
+          }
+        },
+        "preprocessing": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "rejected": {
+      "type": "object", "additionalProperties": false, "required": ["status", "error"],
+      "properties": {
+        "status": { "const": "rejected" },
+        "error": {
+          "type": "object", "additionalProperties": false, "required": ["code", "message", "http_status"],
+          "properties": {
+            "code": { "enum": ["EMPTY_FILE", "FILE_TOO_LARGE", "UNSUPPORTED_TYPE", "DECODE_FAILED", "IMAGE_TOO_SMALL"] },
+            "message": { "type": "string" },
+            "http_status": { "enum": [400, 413, 415], "description": "Suggested HTTP status." }
+          }
+        }
+      }
+    }
+  }
+}

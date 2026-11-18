@@ -1,0 +1,5 @@
+fold,model,probs,has_thresholds,splits_md5
+0,convnext_tiny,/content/sdnet_extracted/results/ConvNeXt-Tiny/test_probs.csv,True,n/a
+0,densenet121,/content/sdnet_extracted/results/densenet/test_probs.csv,True,n/a
+0,efficientnet_b0,/content/sdnet_extracted/results/efficientnet_b0/test_probs.csv,True,n/a
+0,mobilenet_v3_large,/content/sdnet_extracted/results/mobilenet_v3_large/test_probs.csv,True,n/a
