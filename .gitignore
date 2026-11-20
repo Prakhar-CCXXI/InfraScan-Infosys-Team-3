@@ -27,3 +27,7 @@ data/sample_cracks/
 
 data/runs/
 data/sample_cracks/
+
+data/rdd2022_detection/checkpoints/
+data/cam_out/
+data/cam_out_sdnet/
