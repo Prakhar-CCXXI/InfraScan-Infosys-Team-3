@@ -20,7 +20,9 @@ Separate model, not yet wired in:  Patch classifier [ConvNeXt-Tiny, SDNET2018]  
 Milestone 3 additions (advisory, config-driven):
   Severity engine  [ml/severity/severity_engine.py + severity_config.json]  relative measures + detector classes -> category, score, suggested priority, flags
   Explainability   [ml/explain/gradcam.py]  Grad-CAM / Grad-CAM++ for the classifier and the U-Net (hooks need a GPU smoke test)
-  Road-damage detector (RDD2022: D00, D10, D20, D40)  [ml/data/prepare_rdd2022_yolo.py, ml/detection/train_rdd2022_yolo.py, eval_rdd2022_yolo.py]  training pending
+  Road-damage detector (RDD2022: D00, D10, D20, D40)  [ml/data/prepare_rdd2022_yolo.py, ml/detection/*]  trained: YOLO11s, test mAP50 0.357 (D10 unreliable)
+Milestone 4 wrapper:
+  Unified service  [ml/service/inference_service.py]  analyze(bytes, profile) -> schema-valid result; profile close_up (U-Net[+YOLO], geometry, severity, optional classifier) or road_scene (RDD2022 detector, severity); verifies checkpoint hashes against the registry
 ```
 
 ## 2. Datasets -> tasks -> models
@@ -32,7 +34,7 @@ Milestone 3 additions (advisory, config-driven):
 | Optional fused output | Crack500 | Hybrid v0.1 (no accuracy gain) | `crack500-hybrid-v0.1` |
 | Existing demo | Crack-seg | YOLO11n-Seg demo v0 (untouched) | `crack-seg-yolo11n-demo-v0` |
 | Baseline / negative result | Concrete Crack Images | ResNet50 v0.1 (not deployable) | `concrete-crack-resnet50-baseline-v0.1` |
-| Multi-class road damage (D00, D10, D20, D40) | RDD2022 India, converted; val/test carved from train | YOLO11s detector (training pending) | - |
+| Multi-class road damage (D00, D10, D20, D40) | RDD2022 India, converted; val/test carved from train | YOLO11s detector v1.0 | `rdd2022-yolo11s-v1.0` |
 
 ## 3. Key results (details in docs/evaluation_report.md)
 Crack500 U-Net test: Dice 74.8, IoU 59.8, precision 71.1, recall 78.9 (validation Dice 82.1). Hybrid vs U-Net on test: no demonstrated improvement; YOLO alone is worse (-3.0 pt mean image Dice); inference on a T4: U-Net 42 ms, YOLO 18 ms, hybrid 42 to 57 ms. SDNET2018 fold 0 (ConvNeXt): PR-AUC 0.886; at the validation recall-90% threshold recall 0.897, precision 0.576. Geometry vs annotated masks: orientation reliable (1.1 deg), area robust, length -11%, mean width +17%. The PDF's proposed targets (Dice >= 85, IoU >= 75, detection mAP@50 >= 85) are not met.

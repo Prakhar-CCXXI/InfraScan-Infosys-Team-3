@@ -1,0 +1,247 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "infrascan/road_scene_result.schema.json",
+  "title": "InfraScan road-scene damage detection result (profile = road_scene)",
+  "description": "Output of the RDD2022 detector for dashcam-style road images (boxes only; no masks, no measurements). Separate from inference_result.schema.json (close-up surfaces). Boxes are in pixels of the processed image. Advisory only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "schema_version",
+    "profile",
+    "pipeline",
+    "models",
+    "coordinate_frame",
+    "detections",
+    "class_counts",
+    "severity",
+    "warnings",
+    "timing_ms",
+    "disclaimer"
+  ],
+  "properties": {
+    "status": {
+      "const": "ok"
+    },
+    "schema_version": {
+      "const": "infrascan-roadscene-0.1"
+    },
+    "profile": {
+      "const": "road_scene"
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "config"
+      ],
+      "properties": {
+        "name": {
+          "const": "rdd2022_detector"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "conf",
+            "imgsz"
+          ],
+          "properties": {
+            "conf": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "imgsz": {
+              "type": "integer",
+              "minimum": 32
+            }
+          }
+        }
+      }
+    },
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "id",
+          "sha256"
+        ],
+        "properties": {
+          "role": {
+            "enum": [
+              "segmentation",
+              "localisation",
+              "classification",
+              "detection"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "coordinate_frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "width",
+        "height",
+        "origin",
+        "resize_scale_to_original"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "origin": {
+          "const": "top-left, x right, y down"
+        },
+        "resize_scale_to_original": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "detections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "box_xyxy",
+          "confidence",
+          "class",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "box_xyxy": {
+            "type": "array",
+            "items": {
+              "type": "number",
+              "minimum": 0
+            },
+            "minItems": 4,
+            "maxItems": 4
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "class": {
+            "enum": [
+              "D00",
+              "D10",
+              "D20",
+              "D40"
+            ],
+            "description": "D00 longitudinal crack, D10 transverse crack, D20 alligator crack, D40 other corruption (rutting, bump, pothole, separation); from RDD documentation, verify."
+          },
+          "source": {
+            "const": "yolo"
+          }
+        }
+      }
+    },
+    "class_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "D00",
+        "D10",
+        "D20",
+        "D40"
+      ],
+      "properties": {
+        "D00": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "D10": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "D20": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "D40": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "uri"
+      ],
+      "properties": {
+        "uri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "severity": {
+      "type": "object",
+      "description": "Advisory rating, structure in severity_result.schema.json"
+    },
+    "warnings": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "NO_DETECTION",
+          "LOW_LIGHT",
+          "POSSIBLE_BLUR",
+          "UNVALIDATED_OPERATING_POINT"
+        ]
+      }
+    },
+    "timing_ms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_ms"
+      ],
+      "properties": {
+        "total_ms": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "disclaimer": {
+      "type": "string"
+    }
+  }
+}

@@ -24,8 +24,9 @@ Evidence levels: **V** = verified from uploaded files, **C** = pasted JSON/chat 
 | DenseNet121 | 0.952 | 0.884 [0.846, 0.918] | -0.001 [-0.015, +0.010] (tie) | 0.550 / 0.897 | 14.4% |
 | EfficientNet-B0 | 0.946 | 0.877 [0.836, 0.912] | -0.009 [-0.022, +0.001] | 0.525 / 0.891 | 15.8% |
 | MobileNetV3-Large | 0.942 | 0.867 [0.827, 0.902] | -0.018 [-0.030, -0.009] | 0.542 / 0.878 | 14.6% |
+| ResNet50 (recovered checkpoint) | 0.912 | 0.805 [0.753, 0.853] | -0.081 [-0.109, -0.059] | 0.374 / 0.896 | 29.4% |
 
-ResNet50 is excluded: no verifiable output on this test set (an earlier run used a different split; PR-AUC 0.805 is not comparable). **Selected: ConvNeXt-Tiny v1.0**, statistically tied with DenseNet121 (the lighter alternative).
+ResNet50 is a recovered checkpoint; its stored predictions reproduce the reported metrics exactly and its labels match the fold-0 test set, so it is included and is clearly the weakest (about twice the false-alarm rate at 90% recall). **Selected: ConvNeXt-Tiny v1.0**, statistically tied with DenseNet121 (the lighter alternative).
 **Operating point** (validation-selected): recall-90% threshold gives precision 57.6%, recall 89.7%, F1 70.1%; best-F1 threshold gives 86.0% / 77.2% / 81.3% (fold 0, C).
 **Five folds (R, not controlled):** PR-AUC 85.0 +/- 4.5 pp, recall 90.2 +/- 2.3, precision 45.6 +/- 10.5. Fold 0 is better than the five-fold mean; quote both. Reported pooled false-alarm rates: deck 27%, pavement 11%, wall 30%.
 **Label audit (one fold, one non-expert reviewer, R):** of the 60 most confident false positives, 28 looked like cracks and 22 were ambiguous; of the 40 lowest-scoring "cracked" images, 30 showed no crack; controls 1/40 and 1/20. These are tail samples, so they do not give a dataset noise rate. Original labels were not changed.
@@ -58,10 +59,29 @@ Lengths are underestimated and widths overestimated (consistent: area error is r
 - **Failed segmentations:** where Dice < 0.5 (6% of images) geometry is meaningless (length -70%, area -82%).
 - Recommended primary measures: length, area and orientation; report mean/max width as approximate, and flag thin cracks as low-reliability.
 
+## 3b. RDD2022 India road-damage detector (V, from rdd2022_val_metrics.json and rdd2022_test_metrics.json)
+YOLO11s, 640 px, classes D00 (longitudinal crack, incl. D01), D10 (transverse, incl. D11), D20 (alligator), D40 (other corruption); weights SHA256 `848f619cdebacd7ae0b63a585bdec50939244cb520adc8b20b3c129a33c8bf43`. Validation and test are carved from the labelled training images (blocks of adjacent frames; duplicates kept together); the test split was evaluated once.
+| Class | GT boxes val / test | Val P / R | Val mAP50 / mAP50-95 | Test P / R | Test mAP50 / mAP50-95 |
+|---|---|---|---|---|---|
+| D00 | 262 / 256 | 0.464 / 0.344 | 0.298 / 0.122 | 0.393 / 0.359 | 0.312 / 0.135 |
+| D10 (**unreliable**) | 17 / 17 | 0.280 / 0.059 | 0.083 / 0.045 | 0.138 / 0.104 | 0.085 / 0.026 |
+| D20 | 308 / 314 | 0.532 / 0.617 | 0.624 / 0.300 | 0.495 / 0.650 | 0.630 / 0.293 |
+| D40 | 481 / 471 | 0.522 / 0.383 | 0.416 / 0.151 | 0.432 / 0.455 | 0.403 / 0.151 |
+| **All (4-class mean)** | 1,068 / 1,058 | 0.450 / 0.350 | **0.355** / 0.154 | 0.364 / 0.392 | **0.357** / 0.151 |
+
+- Validation and test mAP50 agree (0.355 vs 0.357), so there is no sign of overfitting to the validation split. Mean test mAP50 over the three classes with enough boxes is 0.448.
+- **D10 transverse cracks cannot be assessed**: 17 boxes each in validation and test (113 in the whole dataset); its mAP50 of 0.085 is a rough indication only and drags the 4-class mean down.
+- D20 (alligator cracking, large regions) is best (0.63); the thin D00 and the broad D40 class are harder (0.31 and 0.40).
+- Far below the PDF's proposed mAP@50 of 85%. Those targets were written for crack detection on a suitable annotated set; this detector works on dashcam road scenes with coarse box labels.
+- Inference confidence: the service default is 0.233, the peak of the all-class F1 curve (F1 0.38) read from the validation `BoxF1_curve.png` (per class: D20 about 0.33, D40 and D00 about 0.21; D10 unreliable and drops to 0 above 0.30). Any other confidence is flagged `UNVALIDATED_OPERATING_POINT`. The curve was read from a plot and the F1 at this point is low.
+
+## 3c. Explainability smoke test (R: team report; the panels were not reviewed here)
+Grad-CAM on the SDNET ConvNeXt classifier, 3 images only. On in-domain SDNET concrete patches the heat followed the visible cracks at predicted probabilities of 0.99 to 1.00. On RDD2022 dashcam road images the heat fell on sky, power lines and trees, consistent with a domain mismatch. Consequence: the classifier is not run on road scenes; the inference service takes an explicit `profile` (close_up or road_scene) chosen by the caller. A sample of three is anecdotal; the segmentation Grad-CAM and Grad-CAM++ variants were not part of this test.
+
 ## 4. Status against the PDF's proposed targets (section 10; targets, not validated results)
 | Target | Result |
 |---|---|
-| Detection mAP@50 >= 85%, recall >= 90% | **Not met on validation**: Crack500 YOLO11n-Seg box mAP50 53.8%, box recall 49.2%, mask mAP50 50.6% (Ultralytics, best epoch 47, V). Test (reported): box mAP50 32.1%, recall 33.8%; mask mAP50 21.4%, mAP50-95 6.1%. Instance-level matching is harsh on thin, fragmented cracks and is not comparable with pixel Dice. Demo model (different data): box mAP50 66.6% (R) |
+| Detection mAP@50 >= 85%, recall >= 90% | **Not met on validation**: Crack500 YOLO11n-Seg box mAP50 53.8%, box recall 49.2%, mask mAP50 50.6% (Ultralytics, best epoch 47, V). Test (reported): box mAP50 32.1%, recall 33.8%; mask mAP50 21.4%, mAP50-95 6.1%. Instance-level matching is harsh on thin, fragmented cracks and is not comparable with pixel Dice. RDD2022 India detector (YOLO11s, 4 classes): test mAP50 35.7%, recall 39.2% (section 3b). Demo model (different data): box mAP50 66.6% (R) |
 | Segmentation Dice >= 85%, IoU >= 75% | **Not met**: test 74.8 / 59.8 (validation 82.1 / 69.6) |
 | Classification macro F1 >= 85% | Crack-class F1 81.3% at the best-F1 threshold (fold 0); macro F1 not computed |
 | Recall >= 90% (classification) | 89.7% at the recall-90 threshold, with 57.6% precision |
@@ -74,6 +94,7 @@ Lengths are underestimated and widths overestimated (consistent: area error is r
 - Test Dice is about 7 points below validation Dice; the test set is larger (1,124 vs 348 images).
 - SDNET labels are noisy and ambiguous; fold configurations were not controlled.
 - No physical (mm) measurements without calibration; crack-type classification deferred (no labelled data); severity thresholds need engineer-defined criteria (Milestone 3).
+- The RDD2022 detector covers dashcam road scenes only (box labels, no masks, no measurements); the classifier is not valid there; the image-level aggregation of the patch classifier (max tile probability) is unvalidated.
 - Existing demo: stored originals are JPEG re-encodes; blur rule (Laplacian < 60) flags smooth concrete; documentation is partly stale (see model card).
 
 ## 6. Open items
