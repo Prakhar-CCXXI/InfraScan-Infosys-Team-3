@@ -1,0 +1,1 @@
+"""InfraScan Backend Application Package."""
