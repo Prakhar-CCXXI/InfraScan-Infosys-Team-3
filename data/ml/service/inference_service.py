@@ -10,7 +10,7 @@ Errors: pp.ImageValidationError (bad upload: .code .message .http_status .to_dic
 
 PROFILES are chosen by the CALLER (no automatic scene detection):
   close_up   : close-up pavement/concrete surface -> U-Net mask (+ YOLO boxes via the dual-threshold hybrid if a crack-YOLO checkpoint is set)
-               -> pixel geometry -> severity.  Optional classify=True adds an IMAGE-LEVEL classification (see _classify: unvalidated aggregation).
+               -> pixel geometry -> severity.  Falls back to SDNET2018 ConvNeXt-Tiny concrete classifier when U-Net returns an empty mask.
   road_scene : dashcam-style road image -> RDD2022 detector (D00/D10/D20/D40 boxes) -> severity from detections.
 The SDNET classifier is not meaningful on road scenes (Grad-CAM smoke test: heat on sky and trees), so it is never run for road_scene.
 
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import sys
@@ -33,6 +34,8 @@ from pathlib import Path
 
 import cv2
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 _HERE = Path(__file__).resolve().parent
 for _sub in ("preprocessing", "hybrid", "severity"):
@@ -153,12 +156,19 @@ class InferenceService:
 
     def _ensure_clf(self):
         if self._clf is None:
-            self._verify("cls", self.cfg.cls_ckpt)
+            ckpt = self.cfg.cls_ckpt
+            if not ckpt:
+                default_ckpt = _HERE.parent.parent / "sdnet2018_classification" / "checkpoints" / "ConvNeXt-Tiny" / "best.pt"
+                if default_ckpt.is_file():
+                    ckpt = str(default_ckpt)
+            self._verify("cls", ckpt)
             import torch
             from torchvision import models
             dev = torch.device(self.cfg.device or ("cuda" if torch.cuda.is_available() else "cpu"))
             m = models.convnext_tiny(weights=None); m.classifier[-1] = torch.nn.Linear(m.classifier[-1].in_features, 1)   # same head as train_classifier.py
-            m.load_state_dict(torch.load(self.cfg.cls_ckpt, map_location=dev)); self._clf = m.to(dev).eval()
+            state = torch.load(ckpt, map_location=dev)
+            m.load_state_dict(state["model"] if isinstance(state, dict) and "model" in state else state)
+            self._clf = m.to(dev).eval()
         return self._clf
 
     def health(self):
@@ -195,8 +205,47 @@ class InferenceService:
                                      quality_flag_codes=meta["quality_checks"]["flag_codes"], mm_per_px=mm_per_px, calibration_source=calibration_source)
         size = out["coordinate_frame"]
         out["severity"] = sev.assess(out["measurements"], None, dict(width=size["width"], height=size["height"]), out["warnings"], self._sev_cfg, mm_per_px)
-        if classify:
-            out["classification"] = self._classify(bgr); out["models"].append(self._ref("cls"))
+
+        empty_mask = out["mask"]["positive_pixels"] == 0
+        density = float((out.get("measurements") or {}).get("crack_density_percent") or 0.0)
+        low_density = density < 0.25
+        if classify or empty_mask or low_density:
+            try:
+                cls_res = self._classify(bgr)
+                out["classification"] = cls_res
+                out["models"].append(self._ref("cls"))
+                if empty_mask and cls_res["decision"]:
+                    prob = cls_res["probability"]
+                    out["warnings"].append("HAIRLINE_CRACK_CLASSIFIER_FALLBACK")
+                    out["severity"] = dict(
+                        out["severity"],
+                        category="LOW",
+                        label="Hairline Crack Detected (Classifier)",
+                        score_0_100=round(prob * 40.0, 1),
+                        suggested_priority="Low Priority",
+                        engineering_review_required=True,
+                        confidence="MEDIUM",
+                        explanation=(
+                            f"U-Net segmentation produced an empty mask on this low-contrast concrete surface, "
+                            f"but the SDNET2018 ConvNeXt-Tiny classifier detected a hairline crack "
+                            f"(confidence {prob * 100:.1f}%, threshold {cls_res['threshold'] * 100:.1f}%). "
+                            f"Pixel geometry is unavailable; inspect the Grad-CAM heatmap."
+                        ),
+                    )
+                elif not empty_mask and low_density and cls_res["decision"]:
+                    prob = cls_res["probability"]
+                    out["warnings"].append("HAIRLINE_CRACK_CLASSIFIER_FALLBACK")
+                    sv = out["severity"]
+                    sv["engineering_review_required"] = True
+                    sv["explanation"] = (
+                        f"{sv.get('explanation') or ''} Partial mask (density {density:.2f}%) but the SDNET2018 "
+                        f"ConvNeXt-Tiny classifier flags a crack (probability {prob * 100:.1f}%, "
+                        f"threshold {cls_res['threshold'] * 100:.1f}%); mask may under-segment. Engineer review required."
+                    ).strip()
+            except ServiceError as exc:
+                if classify:
+                    raise
+                logger.warning("SDNET2018 fallback classifier skipped: %s", exc)
         ov = None
         if return_overlay:
             vis = overlay(bgr, res["hybrid_mask"], (0, 255, 0))

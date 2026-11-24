@@ -4,7 +4,10 @@ import axios from 'axios';
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '';
 export const isMock = !BASE;
-
+export const mediaUrl = (path) => {
+  if (!path) return null;
+  return path.startsWith('http') ? path : `${BASE}${path}`;
+};
 const apiClient = axios.create({
     baseURL: BASE,
     headers: {
@@ -110,8 +113,13 @@ export const api = {
   
   // Real backend image upload & AI inference
   uploadImages: (fd) => http('/images/upload', { method: 'POST', body: fd }),
-  
-  getAnalysis: (id) => use(() => http(`/inspections/${id}/analysis`), () => mock.getAnalysis(id))(),
+  getAnalysis: (id) => {
+    const cleanId = String(id || '').replace(/^PRED-/i, '');
+    const endpoint = /^\d+$/.test(cleanId)
+      ? `/predictions/${cleanId}/analysis`
+      : '/predictions/latest/analysis';
+    return use(() => http(endpoint), () => mock.getAnalysis(id))();
+  },
   getReports: use(() => http('/reports'), mock.getReports),
   getTasks: use(() => http('/maintenance/tasks'), mock.getTasks),
   updateTask: (id, p) => use(() => http(`/maintenance/tasks/${id}`, { method: 'PATCH', body: p }), () => mock.updateTask(id, p))(),

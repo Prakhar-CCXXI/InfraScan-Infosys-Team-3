@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, Camera, X, Crop, CheckCircle, ShieldAlert, FileText, ExternalLink } from 'lucide-react';
+import { UploadCloud, Camera, X, Crop, CheckCircle } from 'lucide-react';
 import ImageEditor from '../components/ImageEditor.jsx';
 import { useAsync } from '../hooks/useAsync.js';
-import { api, isMock } from '../services/api.js';
-import { Card, Field, PageHead, ErrorBox, Badge } from '../components/ui.jsx';
+import { api } from '../services/api.js';
+import { Card, Field, PageHead, ErrorBox } from '../components/ui.jsx';
 
 const OK = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX = 15 * 1024 * 1024; // 15 MB
@@ -13,10 +13,16 @@ export default function Upload() {
   const nav = useNavigate();
   const { data: assets } = useAsync(api.getAssets, []);
   const pick = useRef(), cam = useRef();
-  
+
   const [files, setFiles] = useState([]);
   const [errs, setErrs] = useState([]);
-  const [f, setF] = useState({ assetId: '', date: new Date().toISOString().split('T')[0], inspector: 'R. Kumar', notes: '' });
+  const [f, setF] = useState({
+    assetId: '',
+    date: new Date().toISOString().split('T')[0],
+    inspector: 'R. Kumar',
+    profile: 'close_up',
+    notes: '',
+  });
   const [fe, setFe] = useState({});
   const [ed, setEd] = useState(null);
   const [stage, setStage] = useState('idle');
@@ -81,6 +87,11 @@ export default function Upload() {
       clearInterval(t);
     }
   };
+
+  const crackDensity =
+    prediction?.defect_details?.measurements?.crack_density_percent ??
+    prediction?.defect_details?.crack_density_percentage ??
+    0;
 
   return (
     <>
@@ -193,6 +204,17 @@ export default function Upload() {
               </select>
             </Field>
 
+            <Field label="Analysis profile">
+              <select
+                className="input"
+                value={f.profile}
+                onChange={(e) => setF({ ...f, profile: e.target.value })}
+              >
+                <option value="close_up">Close-up crack surface (U-Net + Grad-CAM + geometry)</option>
+                <option value="road_scene">Road scene / dashcam (YOLO11s RDD2022 boxes)</option>
+              </select>
+            </Field>
+
             <Field label="Inspection date" error={fe.date}>
               <input
                 type="date"
@@ -271,7 +293,7 @@ export default function Upload() {
                 <button
                   type="button"
                   className="btn-ghost"
-                  onClick={() => nav('/results')}
+                  onClick={() => nav(prediction ? `/results/${prediction.id}` : '/results')}
                 >
                   View full damage analysis
                 </button>
@@ -283,7 +305,7 @@ export default function Upload() {
 
       {prediction && (
         <div className="mt-6">
-          <Card title="Live AI Analysis Result (Persisted in PostgreSQL)">
+          <Card title="Live AI Analysis Result">
             <div className="grid gap-4 md:grid-cols-4">
               <div className="p-3 bg-slate-50 rounded border">
                 <p className="text-xs text-slate-500">Database Record ID</p>
@@ -305,7 +327,7 @@ export default function Upload() {
                   {prediction.defect_details?.total_defects || 1} defect(s) localized
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  Crack density: {prediction.defect_details?.crack_density_percentage || 0}%
+                  Crack density: {Number(crackDensity).toFixed(2)}%
                 </p>
               </div>
 
