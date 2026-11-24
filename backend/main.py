@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.routes.assets import router as assets_router
@@ -16,18 +19,29 @@ from backend.api.routes.predictions import (
 from backend.api.routes.users import router as users_router
 from backend.core.config import settings
 from backend.db.session import Base, engine
+from backend.services.ai_inference import get_ai_inference_service
 import backend.models  # noqa: F401
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Ensure runtime directories exist and tables are verified on application startup."""
+    """Ensure runtime directories exist, verify tables, and create the shared InferenceService."""
     upload_path = Path(settings.UPLOAD_DIR)
     upload_path.mkdir(parents=True, exist_ok=True)
     try:
         Base.metadata.create_all(bind=engine)
     except Exception:
         pass
+
+    # One shared InferenceService for the whole process. Model weights load lazily on the first
+    # request of each profile; if anything is missing, requests get 503 (never fake predictions).
+    ai_service = get_ai_inference_service()
+    await run_in_threadpool(ai_service.initialise)
+    h = ai_service.health()
+    logger.info("Inference health at startup: status=%s profiles=%s mock_allowed=%s",
+                h["status"], h["profiles"], h["mock_allowed"])
     yield
 
 
@@ -60,6 +74,17 @@ app.mount("/uploads", StaticFiles(directory=str(upload_dir_path)), name="uploads
 # Health check & root endpoints
 app.include_router(health_router, tags=["Health"])
 
+
+@app.get("/health/models", tags=["Health"])
+def models_health():
+    """Inference readiness: per-profile checkpoint availability, loaded model hashes, mock flag.
+
+    HTTP 503 when neither profile can run (and mock output is not allowed)."""
+    info = get_ai_inference_service().health()
+    code = 503 if info["status"] == "unavailable" else 200
+    return JSONResponse(info, status_code=code)
+
+
 # Core domain routers (accessible directly and via /api/v1 prefix)
 app.include_router(auth_router)
 app.include_router(auth_router, prefix=settings.API_PREFIX)
@@ -90,6 +115,7 @@ def root():
         "version": "0.3.0",
         "docs": "/docs",
         "health": "/health",
+        "model_health": "/health/models",
         "endpoints": {
             "image_upload": "/images/upload",
             "predictions_analyze": f"{settings.API_PREFIX}/predictions/analyze",

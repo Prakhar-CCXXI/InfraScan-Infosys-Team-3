@@ -1,6 +1,10 @@
-import os
 from pathlib import Path
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# backend/core/config.py -> parents[2] is the repository root
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -32,11 +36,50 @@ class Settings(BaseSettings):
         "image/webp",
     ]
 
-    # ML Model Settings
-    CLASSIFIER_WEIGHTS_PATH: str = "data/sdnet2018_classification/checkpoints/mobilenet_v3_large/best.pt"
-    YOLO_SEG_WEIGHTS_PATH: str = "data/Crack500-YOLO-Segmentation/checkpoints/yolo11n-seg.pt"
-    UNET_WEIGHTS_PATH: str = "data/Crack500-YOLO-Segmentation/checkpoints/unet_resnet34.pt"
-    DEVICE: str = "cuda" if os.environ.get("USE_CUDA") == "1" else "cpu"
+    # ------------------------------------------------------------------
+    # ML inference (data/ml/service/inference_service.py)
+    # Relative paths are resolved against the repo root, not the CWD.
+    # Both the plain name (UNET_CKPT) and the ML package's own env var
+    # (INFRASCAN_UNET_CKPT) are accepted.
+    # ------------------------------------------------------------------
+    UNET_CKPT: str | None = Field(
+        default="data/Crack500-YOLO-Segmentation/checkpoints/unet_best.pt",
+        validation_alias=AliasChoices("UNET_CKPT", "INFRASCAN_UNET_CKPT"),
+    )
+    RDD_CKPT: str | None = Field(
+        default="data/rdd2022_detection/checkpoints/yolo11s_rdd2022_s42/best.pt",
+        validation_alias=AliasChoices("RDD_CKPT", "INFRASCAN_RDD_CKPT"),
+    )
+    # Optional crack-YOLO (hybrid close_up). Leave unset for U-Net-only mode.
+    CRACK_YOLO_CKPT: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("CRACK_YOLO_CKPT", "INFRASCAN_YOLO_CKPT"),
+    )
+    HYBRID_CONFIG: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("HYBRID_CONFIG", "INFRASCAN_HYBRID_CONFIG"),
+    )
+    SEVERITY_CONFIG: str | None = Field(
+        default=None,  # None -> severity_config.json next to severity_engine.py
+        validation_alias=AliasChoices("SEVERITY_CONFIG", "INFRASCAN_SEVERITY_CONFIG"),
+    )
+    MODEL_REGISTRY_PATH: str | None = Field(
+        default="data/ml/registry/model_registry.json",
+        validation_alias=AliasChoices("MODEL_REGISTRY_PATH", "INFRASCAN_REGISTRY"),
+    )
+    VERIFY_MODEL_HASHES: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("VERIFY_MODEL_HASHES", "INFRASCAN_VERIFY_HASHES"),
+    )
+    INFERENCE_DEVICE: str | None = Field(
+        default=None,  # None -> auto (cuda if available)
+        validation_alias=AliasChoices("INFERENCE_DEVICE", "INFRASCAN_DEVICE"),
+    )
+    DEFAULT_INFERENCE_PROFILE: str = "close_up"  # "close_up" | "road_scene"
+
+    # Mock output is OFF by default. When true AND real models are unavailable,
+    # the API returns clearly tagged mock data (source="mock") instead of 503.
+    ALLOW_MOCK_INFERENCE: bool = False
 
     @property
     def async_database_url(self) -> str:
@@ -57,6 +100,12 @@ class Settings(BaseSettings):
     def max_image_size_bytes(self) -> int:
         return self.MAX_IMAGE_SIZE_MB * 1024 * 1024
 
+    def resolve_path(self, value: str | None) -> str | None:
+        """Absolute path for a configured file (relative -> repo root); '' / None -> None."""
+        if value is None or not str(value).strip():
+            return None
+        p = Path(str(value).strip())
+        return str(p if p.is_absolute() else (REPO_ROOT / p).resolve())
+
 
 settings = Settings()
-

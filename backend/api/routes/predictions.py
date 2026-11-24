@@ -16,13 +16,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.core.config import settings
 from backend.db.session import get_async_db
 from backend.models.prediction import Prediction
-from backend.schemas.prediction import PredictionResponse
-from backend.services.ai_inference import AIInferenceService, get_ai_inference_service
-
+from backend.schemas.prediction import InferenceProfile, PredictionResponse
+from backend.services.ai_inference import (
+    AIInferenceService,
+    get_ai_inference_service
+)
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/predictions", tags=["Predictions"])
 images_router = APIRouter(prefix="/images", tags=["Images"])
+
+PROFILE_DESCRIPTION = (
+    "'close_up' = close-up pavement/concrete surface (U-Net crack mask + measurements); "
+    "'road_scene' = dashcam-style road image (RDD2022 D00/D10/D20/D40 boxes)."
+)
+
+
+def to_http_exception(exc: Exception) -> HTTPException:
+    """Map ImageValidationError / ServiceError (anything with .http_status + .to_dict()) to HTTPException."""
+    if hasattr(exc, "http_status") and hasattr(exc, "to_dict"):
+        return HTTPException(status_code=int(exc.http_status), detail=exc.to_dict())
+    logger.exception("Unexpected AI inference failure")
+    return HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail={"status": "error", "schema_version": "infrascan-inference-0.1",
+                "error": {"code": "INFERENCE_FAILED", "message": "An error occurred during AI computer vision inference."}},
+    )
 
 
 def parse_asset_id(raw_val: Any) -> int:
@@ -72,8 +91,9 @@ async def process_and_store_image(
     asset_id: int,
     db: AsyncSession,
     ai_service: AIInferenceService,
+    profile: str = "close_up",
 ) -> tuple[Prediction, str]:
-    """Validate, asynchronously store image on disk, execute AI pipeline, and persist to database."""
+    """Validate, run the real AI pipeline, store image + mask/overlay on disk, persist to database."""
     # 1. Filename validation
     if not file.filename:
         raise HTTPException(
@@ -134,17 +154,35 @@ async def process_and_store_image(
             detail="Uploaded file is corrupted or not a valid image format.",
         ) from exc
 
-    # 6. Store image on backend storage asynchronously
+    # 6. Real model inference FIRST (off the event loop, inside the adapter).
+    #    Nothing is written to disk or the DB if inference is unavailable (503) or fails.
+    file_suffix = Path(file.filename).suffix.lower() or ".jpg"
+    stem = f"{uuid4().hex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    unique_filename = f"{stem}{file_suffix}"
+    try:
+        inference_output = await ai_service.analyze(
+            image_bytes=image_bytes,
+            filename=unique_filename,
+            content_type=file.content_type,
+            profile=profile,
+            artifact_stem=stem,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise to_http_exception(exc) from exc
+
+    # 7. Store original image + real mask/overlay bytes under UPLOAD_DIR
     upload_dir = Path(settings.UPLOAD_DIR)
     upload_dir.mkdir(parents=True, exist_ok=True)
-
-    file_suffix = Path(file.filename).suffix.lower() or ".jpg"
-    unique_filename = f"{uuid4().hex}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{file_suffix}"
     destination_path = upload_dir / unique_filename
 
     try:
         async with aiofiles.open(destination_path, "wb") as buffer:
             await buffer.write(image_bytes)
+        for artifact_name, artifact_bytes in inference_output.artifacts.items():
+            async with aiofiles.open(upload_dir / artifact_name, "wb") as buffer:
+                await buffer.write(artifact_bytes)
     except Exception as exc:
         logger.error(f"Error persisting file to disk: {exc}")
         raise HTTPException(
@@ -152,20 +190,7 @@ async def process_and_store_image(
             detail="Failed to persist uploaded image file on storage.",
         ) from exc
 
-    # 7. Decoupled AI Model Inference
-    try:
-        inference_output = await ai_service.analyze(
-            image_bytes=image_bytes,
-            filename=unique_filename,
-        )
-    except Exception as exc:
-        logger.error(f"AI inference pipeline failure: {exc}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during AI computer vision inference.",
-        ) from exc
-
-    # 8. Asynchronously Persist Record to 'predictions' Table
+    # 8. Persist record (predicted_failure_date stays NULL: no validated model produces it)
     prediction_record = Prediction(
         asset_id=asset_id,
         image_path=str(destination_path),
@@ -190,22 +215,29 @@ async def process_and_store_image(
     "/analyze",
     response_model=PredictionResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Upload image and perform AI crack detection & segmentation",
-    description="Accepts an infrastructure image and an asset_id, executes AI defect detection, stores image, and saves prediction.",
+    summary="Upload image and perform AI crack/damage analysis",
+    description=(
+        "Accepts an infrastructure image, an asset_id and an optional inference `profile`. "
+        "Runs the real InferenceService; returns 503 MODEL_UNAVAILABLE if models cannot be loaded "
+        "(mock output only when ALLOW_MOCK_INFERENCE=1, and then tagged defect_details.source='mock')."
+    ),
+    responses={503: {"description": "Models unavailable (MODEL_UNAVAILABLE)"}},
 )
 async def analyze_infrastructure_image(
     asset_id: Any = Form(..., description="Unique infrastructure asset identifier (e.g. 1 or INF-001)"),
     file: UploadFile = File(..., description="Uploaded infrastructure inspection image"),
+    profile: InferenceProfile = Form("close_up", description=PROFILE_DESCRIPTION),
     db: AsyncSession = Depends(get_async_db),
     ai_service: AIInferenceService = Depends(get_ai_inference_service),
 ) -> Prediction:
-    """Validate image, run AI crack detection/segmentation, persist prediction, and return analysis."""
+    """Validate image, run AI analysis, persist prediction, and return it."""
     parsed_id = parse_asset_id(asset_id)
     prediction_record, _ = await process_and_store_image(
         file=file,
         asset_id=parsed_id,
         db=db,
         ai_service=ai_service,
+        profile=profile,
     )
     return prediction_record
 
@@ -223,6 +255,7 @@ async def upload_frontend_images(
     date: str | None = Form(None),
     inspector: str | None = Form(None),
     notes: str | None = Form(None),
+    profile: InferenceProfile = Form("close_up", description=PROFILE_DESCRIPTION),
     db: AsyncSession = Depends(get_async_db),
     ai_service: AIInferenceService = Depends(get_ai_inference_service),
 ) -> dict[str, Any]:
@@ -252,6 +285,7 @@ async def upload_frontend_images(
             asset_id=parsed_asset_id,
             db=db,
             ai_service=ai_service,
+            profile=profile,
         )
 
         saved_images.append({
@@ -274,18 +308,22 @@ async def upload_frontend_images(
         })
 
     primary_prediction = predictions_data[0]
+    details = primary_prediction["defect_details"] or {}
+    show_conf = details.get("confidence_basis") == "max_detection_confidence"
+    conf_txt = f" (Confidence: {int(primary_prediction['confidence_score'] * 100)}%)" if show_conf else ""
+    mock_txt = " [MOCK DATA - models unavailable]" if details.get("source") == "mock" else ""
     return {
         "status": "success",
         "message": (
-            f"Successfully stored {len(file_list)} image(s) in backend storage! "
-            f"AI Assessment: {primary_prediction['severity_level']} "
-            f"(Confidence: {int(primary_prediction['confidence_score'] * 100)}%). "
+            f"Successfully stored {len(file_list)} image(s) in backend storage!{mock_txt} "
+            f"AI Assessment: {primary_prediction['severity_level']}{conf_txt}. "
             f"Action: {primary_prediction['recommended_action'][:80]}..."
         ),
         "count": len(file_list),
         "asset_id": parsed_asset_id,
         "inspector": inspector,
         "date": date,
+        "profile": profile,
         "stored_images": saved_images,
         "predictions": predictions_data,
     }

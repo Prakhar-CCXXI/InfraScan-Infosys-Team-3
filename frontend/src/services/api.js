@@ -1,7 +1,6 @@
 // API Integration Layer connecting Frontend with FastAPI Backend
 import { mock } from './mockApi.js';
-import {axios} from "axios";
-
+import axios from 'axios';
 
 const BASE = import.meta.env.VITE_API_BASE_URL || '';
 export const isMock = !BASE;
