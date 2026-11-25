@@ -113,6 +113,8 @@ export const api = {
   
   // Real backend image upload & AI inference
   uploadImages: (fd) => http('/images/upload', { method: 'POST', body: fd }),
+  pdateReview: (predictionId, status, notes) =>
+    http(`/predictions/${predictionId}/review`, { method: 'PATCH', body: { status, notes } }),
   getAnalysis: (id) => {
     const cleanId = String(id || '').replace(/^PRED-/i, '');
     const endpoint = /^\d+$/.test(cleanId)

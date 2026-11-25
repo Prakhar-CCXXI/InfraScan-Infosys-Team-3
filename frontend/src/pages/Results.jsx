@@ -10,6 +10,8 @@ export default function Results() {
   const { id = 'latest' } = useParams();
   const { data, loading, error, reload } = useAsync(() => api.getAnalysis(id), [id]);
   const [review, setReview] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [reviewErr, setReviewErr] = useState(null);
 
   if (loading) return <Loading />;
   if (error) return <ErrorBox message={error} onRetry={reload} />;
@@ -20,6 +22,23 @@ export default function Results() {
   const images = data.images || {};
   const isSample = Boolean(data.sample);
   const rawConf = data.confidence ?? c?.confidence ?? 0;
+
+  const submitReview = async (status, localLabel) => {
+    if (!data.predictionId) {
+      setReview(localLabel); // sample/mock data has no DB record
+      return;
+    }
+    setSaving(true);
+    setReviewErr(null);
+    try {
+      const r = await api.updateReview(data.predictionId, status);
+      setReview(r.reviewStatus);
+    } catch (e) {
+      setReviewErr(e.message || 'Could not save review status.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const steps = [
     ['Original image', 'original'],
@@ -102,7 +121,11 @@ export default function Results() {
             <ul className="space-y-2 text-sm">
               {detections.map((d, idx) => (
                 <li key={idx} className="flex items-center justify-between border-t pt-1">
-                  <span className="font-medium">{d.class_name || d.label || d.class}</span>
+                  <span className="font-medium">
+                    {d.class && d.label && d.label !== d.class
+                      ? `${d.class} · ${d.label}`
+                      : d.class_name || d.label || d.class}
+                  </span>
                   <span className="text-slate-600">
                     {Math.round((d.confidence || 0) * 100)}%
                   </span>
@@ -119,7 +142,11 @@ export default function Results() {
             <li>
               Confidence:{' '}
               <b>
-                {rawConf > 0 ? `${Math.round(rawConf * 100)}%` : 'N/A (pixel segmentation)'}
+              {rawConf > 0
+                ? `${Math.round(rawConf * 100)}%`
+                : data.profile === 'road_scene'
+                  ? 'N/A (no detections)'
+                  : 'N/A (pixel segmentation)'}
               </b>
             </li>
             {data.severityScore != null && (
@@ -148,17 +175,20 @@ export default function Results() {
           <div className="flex flex-wrap gap-2">
             <button
               className="btn"
-              onClick={() => setReview('Confirmed by engineer (local session)')}
+              disabled={saving}
+              onClick={() => submitReview('confirmed', 'Confirmed by engineer (local session)')}
             >
               Confirm
             </button>
             <button
               className="btn-ghost"
-              onClick={() => setReview('Engineering review requested (local session)')}
+              disabled={saving}
+              onClick={() => submitReview('review_requested', 'Engineering review requested (local session)')}
             >
               Request review
             </button>
           </div>
+          {reviewErr && <p role="alert" className="mt-2 text-xs text-red-600">{reviewErr}</p>}
         </Card>
       </div>
 

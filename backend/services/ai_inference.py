@@ -319,6 +319,7 @@ class AIInferenceService:
         return info
 
     # -- public API --------------------------------------------------------
+    # -- public API --------------------------------------------------------
     async def analyze(
         self,
         image_bytes: bytes,
@@ -327,10 +328,20 @@ class AIInferenceService:
         content_type: str | None = None,
         profile: str | None = None,
         artifact_stem: str | None = None,
+        mm_per_px: float | None = None,
+        calibration_source: str | None = None,
     ) -> AIInferenceOutput:
         profile = profile or settings.DEFAULT_INFERENCE_PROFILE
         try:
-            return await asyncio.to_thread(self._analyze_blocking, image_bytes, content_type, profile, artifact_stem)
+            return await asyncio.to_thread(
+                self._analyze_blocking,
+                image_bytes,
+                content_type,
+                profile,
+                artifact_stem,
+                mm_per_px,
+                calibration_source,
+            )
         except Exception as exc:
             if settings.ALLOW_MOCK_INFERENCE and _is_unavailable(exc):
                 logger.warning("Real models unavailable (%s); returning TAGGED MOCK output (ALLOW_MOCK_INFERENCE=1)", exc)
@@ -338,11 +349,24 @@ class AIInferenceService:
             raise
 
     # -- blocking part (worker thread) ---------------------------------------
-    def _analyze_blocking(self, image_bytes, content_type, profile, artifact_stem) -> AIInferenceOutput:
+    def _analyze_blocking(
+        self,
+        image_bytes,
+        content_type,
+        profile,
+        artifact_stem,
+        mm_per_px=None,
+        calibration_source=None,
+    ) -> AIInferenceOutput:
         svc = self._get_service()
-        out = svc.analyze(image_bytes, content_type, profile=profile)   # raises ImageValidationError / ServiceError
+        out = svc.analyze(
+            image_bytes,
+            content_type,
+            profile=profile,
+            mm_per_px=mm_per_px,
+            calibration_source=calibration_source,
+        )
         return self._adapt(out, profile, artifact_stem)
-
     def _adapt(self, out, profile: str, stem: str | None) -> AIInferenceOutput:
         raw: dict = out.result
         inv = _inv_scale(raw)

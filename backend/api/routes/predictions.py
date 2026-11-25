@@ -6,7 +6,7 @@ import logging
 from pathlib import Path
 import sys
 import types
-from typing import Any
+from typing import Any, Literal
 from uuid import uuid4
 
 import aiofiles
@@ -14,8 +14,10 @@ import cv2
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 import numpy as np
 from PIL import Image
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from backend.core.config import REPO_ROOT, settings
 from backend.db.session import get_async_db
@@ -123,6 +125,28 @@ def _find_loaded_classifier(ai_service: Any):
     return None, torch.device("cpu")
 
 
+def _get_classifier(ai_service: Any):
+    """Return (ConvNeXt module, device), asking InferenceService to lazy-load it if needed."""
+    clf_model, clf_dev = _find_loaded_classifier(ai_service)
+    if clf_model is None:
+        svc = getattr(ai_service, "_svc", None)
+        ensure = getattr(svc, "_ensure_clf", None)
+        if callable(ensure):
+            try:
+                ensure()
+                clf_model, clf_dev = _find_loaded_classifier(ai_service)
+            except Exception:
+                logger.warning("ConvNeXt classifier could not be loaded for Grad-CAM", exc_info=True)
+    return clf_model, clf_dev
+
+
+def _is_flat_cam(cam: Any) -> bool:
+    """True when a 2-D CAM is missing, near-zero, or effectively constant (renders as flat blue)."""
+    if not isinstance(cam, np.ndarray) or cam.ndim != 2 or cam.size == 0:
+        return True
+    return float(cam.max()) < 0.05 or float(np.std(cam)) < 1e-3
+
+
 def _convnext_gradcam(model: Any, rgb_uint8: np.ndarray, device: Any) -> np.ndarray | None:
     """Compute a leak-free Grad-CAM heatmap on ConvNeXt-Tiny's final feature stage."""
     import torch
@@ -209,6 +233,7 @@ def _extract_bgr_from_preprocess(pre: Any) -> np.ndarray | None:
     if is_rgb:
         arr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
     return arr
+
 
 def _save_extra_visuals(
     image_bytes: bytes,
@@ -346,6 +371,25 @@ def _save_extra_visuals(
 
     return urls
 
+
+def _detections_from_defects(details: dict[str, Any]) -> list[dict[str, Any]]:
+    """Rebuild Results.jsx detection rows from persisted road-scene `defects` (bounding_box.class_name/confidence)."""
+    out: list[dict[str, Any]] = []
+    for d in details.get("defects") or []:
+        bb = d.get("bounding_box") or {}
+        if not bb:
+            continue
+        code = bb.get("class_name") or d.get("defect_type")
+        out.append({
+            "id": d.get("id"),
+            "class": code,
+            "label": d.get("defect_type"),
+            "confidence": bb.get("confidence"),
+            "box_xyxy": [bb.get("x_min"), bb.get("y_min"), bb.get("x_max"), bb.get("y_max")],
+        })
+    return out
+
+
 def _serialize_analysis(pred: Prediction) -> dict[str, Any]:
     """Format a persisted Prediction into the Damage Analysis schema expected by Results.jsx."""
     details = pred.defect_details or {}
@@ -353,8 +397,16 @@ def _serialize_analysis(pred: Prediction) -> dict[str, Any]:
     meas = details.get("measurements") or {}
     sev = details.get("severity_assessment") or details.get("severity") or {}
     visuals = dict(details.get("visuals") or {})
-    detections = details.get("detections") or raw_inf.get("detections") or []
-    profile = details.get("profile") or ("road_scene" if detections and not meas else "close_up")
+    profile = (
+        details.get("profile")
+        or raw_inf.get("profile")
+        or ("road_scene" if raw_inf.get("detections") else "close_up")
+    )
+    detections = details.get("detections") or []
+    if profile == "road_scene":
+        detections = detections or raw_inf.get("detections") or _detections_from_defects(details)
+        if visuals.get("heat") == visuals.get("detect"):
+            visuals["heat"] = None  # legacy records copied the overlay into the Grad-CAM slot
 
     cls_info = details.get("classification") or raw_inf.get("classification") or {}
     all_warnings = set(details.get("warnings") or []) | set(raw_inf.get("warnings") or [])
@@ -372,6 +424,9 @@ def _serialize_analysis(pred: Prediction) -> dict[str, Any]:
         4,
     )
 
+    mm_px = float((meas.get("calibration") or {}).get("mm_per_px") or 0.0)
+    k = mm_px if mm_px > 0 else 1.0  # px -> mm when calibrated (Results.jsx labels the unit)
+
     cracks = []
     if profile == "close_up" and meas:
         crack_type = (
@@ -383,10 +438,10 @@ def _serialize_analysis(pred: Prediction) -> dict[str, Any]:
             "id": 1,
             "type": crack_type,
             "confidence": conf_val,
-            "lengthPx": round(float(meas.get("length_px") or 0.0), 2),
-            "avgWidthPx": round(float(meas.get("mean_width_px") or 0.0), 2),
-            "maxWidthPx": round(float(meas.get("max_width_px") or 0.0), 2),
-            "areaPx": int(meas.get("area_px") or 0),
+            "lengthPx": round(float(meas.get("length_px") or 0.0) * k, 2),
+            "avgWidthPx": round(float(meas.get("mean_width_px") or 0.0) * k, 2),
+            "maxWidthPx": round(float(meas.get("max_width_px") or 0.0) * k, 2),
+            "areaPx": round(float(meas.get("area_px") or 0.0) * k * k, 2) if mm_px > 0 else int(meas.get("area_px") or 0),
             "orientationDeg": round(float(meas.get("orientation_deg") or 0.0), 1),
             "branchPoints": int(meas.get("n_branch_points") or 0),
         })
@@ -413,13 +468,13 @@ def _serialize_analysis(pred: Prediction) -> dict[str, Any]:
         "detections": detections,
         "surfaceDamage": [],
         "crackDensityPct": round(float(raw_density or 0.0), 2),
-        "calibrated": bool((meas.get("calibration") or {}).get("mm_per_px")),
+        "calibrated": mm_px > 0,
         "severity": sev.get("label") or pred.severity_level or "Unknown",
         "severityScore": sev.get("score_0_100"),
         "severityExplanation": sev.get("explanation") or pred.defect_summary,
         "priority": sev.get("suggested_priority") or "Medium Priority",
         "confidence": conf_val,
-        "reviewStatus": "Pending engineer review",
+        "reviewStatus": details.get("review_status") or "Pending engineer review",
     }
 
 
@@ -489,8 +544,8 @@ async def process_and_store_image(
     db: AsyncSession,
     ai_service: AIInferenceService,
     profile: str = "close_up",
+    mm_per_px: float | None = None,
 ) -> tuple[Prediction, str]:
-    """Validate, run the real AI pipeline, store image + mask/overlay/gradcam on disk, persist to database."""
     # 1. Filename validation
     if not file.filename:
         raise HTTPException(
@@ -563,6 +618,8 @@ async def process_and_store_image(
             content_type=file.content_type,
             profile=profile,
             artifact_stem=stem,
+            mm_per_px=mm_per_px,
+            calibration_source="manual" if mm_per_px else None,
         )
     except HTTPException:
         raise
@@ -612,7 +669,6 @@ async def process_and_store_image(
         use_classifier_cam=use_classifier_cam,
     )
     visuals.update(extra_visuals)
-    
 
     enriched_details = dict(details_dict)
     enriched_details["visuals"] = visuals
@@ -655,6 +711,7 @@ async def analyze_infrastructure_image(
     asset_id: Any = Form(..., description="Unique infrastructure asset identifier (e.g. 1 or INF-001)"),
     file: UploadFile = File(..., description="Uploaded infrastructure inspection image"),
     profile: InferenceProfile = Form("close_up", description=PROFILE_DESCRIPTION),
+    mm_per_px: float | None = Form(None, gt=0, description="Optional manual scale (mm per pixel)"),
     db: AsyncSession = Depends(get_async_db),
     ai_service: AIInferenceService = Depends(get_ai_inference_service),
 ) -> Prediction:
@@ -666,6 +723,7 @@ async def analyze_infrastructure_image(
         db=db,
         ai_service=ai_service,
         profile=profile,
+        mm_per_px=mm_per_px,
     )
     return prediction_record
 
@@ -684,6 +742,7 @@ async def upload_frontend_images(
     inspector: str | None = Form(None),
     notes: str | None = Form(None),
     profile: InferenceProfile = Form("close_up", description=PROFILE_DESCRIPTION),
+    mm_per_px: float | None = Form(None, gt=0, description="Optional manual scale (mm per pixel)"),
     db: AsyncSession = Depends(get_async_db),
     ai_service: AIInferenceService = Depends(get_ai_inference_service),
 ) -> dict[str, Any]:
@@ -714,6 +773,7 @@ async def upload_frontend_images(
             db=db,
             ai_service=ai_service,
             profile=profile,
+            mm_per_px=mm_per_px,
         )
 
         saved_images.append({
@@ -788,6 +848,43 @@ async def get_prediction_analysis(
             detail=f"Prediction with ID {prediction_id} not found.",
         )
     return _serialize_analysis(pred)
+
+
+class ReviewUpdate(BaseModel):
+    status: Literal["confirmed", "review_requested"]
+    notes: str | None = Field(None, max_length=2000)
+
+
+REVIEW_LABELS = {
+    "confirmed": "Confirmed by engineer",
+    "review_requested": "Engineering review requested",
+}
+
+
+@router.patch(
+    "/{prediction_id}/review",
+    summary="Persist the engineer review status for a prediction (stored in defect_details JSON)",
+)
+async def update_review_status(
+    prediction_id: int,
+    body: ReviewUpdate,
+    db: AsyncSession = Depends(get_async_db),
+) -> dict[str, Any]:
+    result = await db.execute(select(Prediction).where(Prediction.id == prediction_id))
+    pred = result.scalar_one_or_none()
+    if pred is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Prediction with ID {prediction_id} not found.",
+        )
+    details = dict(pred.defect_details or {})
+    details["review_status"] = REVIEW_LABELS[body.status]
+    details["review_notes"] = body.notes
+    details["review_updated_at"] = datetime.now().isoformat(timespec="seconds")
+    pred.defect_details = details
+    flag_modified(pred, "defect_details")
+    await db.commit()
+    return {"predictionId": pred.id, "reviewStatus": details["review_status"], "notes": body.notes}
 
 
 @router.get(

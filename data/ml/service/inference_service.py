@@ -107,7 +107,57 @@ def _sha256(path) -> str:
             h.update(c)
     return h.hexdigest()
 
+def _filter_stain_blobs(mask, min_area=600, solidity_thr=0.72, aspect_thr=1.7):
+    """Zero out compact, non-elongated components (stains). Returns (mask, n_removed)."""
+    n, labels, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), connectivity=8)
+    drop = []
+    for i in range(1, n):
+        x, y, w, h, area = [int(v) for v in stats[i]]
+        if area < min_area:
+            continue
+        comp = (labels[y:y + h, x:x + w] == i).astype(np.uint8)
+        cnts, _ = cv2.findContours(comp, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not cnts:
+            continue
+        pts = np.vstack(cnts)
+        hull_area = cv2.contourArea(cv2.convexHull(pts))
+        if hull_area <= 0:
+            continue
+        (_, _), (rw, rh), _ = cv2.minAreaRect(pts)
+        aspect = max(rw, rh) / max(min(rw, rh), 1e-6)
+        if area / hull_area > solidity_thr and aspect < aspect_thr:
+            drop.append(i)
+    if not drop:
+        return mask, 0
+    out = mask.copy()
+    out[np.isin(labels, drop)] = 0
+    return out, len(drop)
 
+
+def _remeasure_mask(mask, old: dict) -> dict:
+    """Recompute the pixel measurements the API reads (only keys already present in `old`) from the filtered mask."""
+    from skimage.morphology import skeletonize
+    binary = (mask > 0).astype(np.uint8)
+    H, W = binary.shape[:2]
+    area = int(binary.sum())
+    vals = dict(area_px=area, crack_density_percent=round(100.0 * area / float(H * W), 4),
+                length_px=0.0, mean_width_px=0.0, max_width_px=0.0, orientation_deg=0.0, n_branch_points=0)
+    if area:
+        sk = skeletonize(binary > 0).astype(np.uint8)
+        dist = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
+        if sk.any():
+            vals["length_px"] = float(sk.sum())
+            vals["mean_width_px"] = float(max(1.0, 2.0 * dist[sk > 0].mean() - 1.0))
+            vals["max_width_px"] = float(max(1.0, 2.0 * dist[sk > 0].max() - 1.0))
+            nb = cv2.filter2D(sk, -1, np.ones((3, 3), np.float32), borderType=cv2.BORDER_CONSTANT) - sk
+            vals["n_branch_points"] = int(cv2.connectedComponents(((sk == 1) & (nb >= 3)).astype(np.uint8), connectivity=8)[0] - 1)
+            ys, xs = np.nonzero(sk)
+            if len(xs) >= 2:
+                vx, vy = cv2.fitLine(np.column_stack([xs, ys]).astype(np.float32), cv2.DIST_L2, 0, 0.01, 0.01).ravel()[:2]
+                vals["orientation_deg"] = float(np.degrees(np.arctan2(vy, vx)) % 180.0)
+    new = dict(old)
+    new.update({k: v for k, v in vals.items() if k in old})
+    return new
 class InferenceService:
     def __init__(self, cfg: ServiceConfig):
         self.cfg, self._lock = cfg, threading.Lock()
@@ -201,8 +251,36 @@ class InferenceService:
             res, name, keys = pipe.predict(bgr, self._hybrid_cfg, measure=True), "hybrid_dual_threshold", ("unet", "yolo")
         else:
             res, name, keys = predict_unet_only(pipe, bgr, thr, measure=True), "unet_only", ("unet",)
-        out = build_inference_result(res, pipeline_name=name, unet_thr=thr, models=[self._ref(k) for k in keys], resize_scale=meta["resize_scale"],
-                                     quality_flag_codes=meta["quality_checks"]["flag_codes"], mm_per_px=mm_per_px, calibration_source=calibration_source)
+
+        n_blobs = 0
+        try:
+            filtered, n_blobs = _filter_stain_blobs(res["hybrid_mask"])
+            if n_blobs:
+                res = dict(res, hybrid_mask=filtered)
+        except Exception as exc:
+            logger.warning("Stain-blob filter skipped: %s", exc)
+
+        out = build_inference_result(
+            res,
+            pipeline_name=name,
+            unet_thr=thr,
+            models=[self._ref(k) for k in keys],
+            resize_scale=meta["resize_scale"],
+            quality_flag_codes=meta["quality_checks"]["flag_codes"],
+            mm_per_px=mm_per_px,
+            calibration_source=calibration_source,
+        )
+
+        if n_blobs:
+            out["warnings"].append("STAIN_BLOB_FILTERED")
+            try:
+                if isinstance(out.get("measurements"), dict):
+                    out["measurements"] = _remeasure_mask(res["hybrid_mask"], out["measurements"])
+                if isinstance(out.get("mask"), dict) and "positive_pixels" in out["mask"]:
+                    out["mask"]["positive_pixels"] = int((res["hybrid_mask"] > 0).sum())
+            except Exception as exc:
+                logger.warning("Re-measure after stain filter failed: %s", exc)
+
         size = out["coordinate_frame"]
         out["severity"] = sev.assess(out["measurements"], None, dict(width=size["width"], height=size["height"]), out["warnings"], self._sev_cfg, mm_per_px)
 
@@ -246,6 +324,7 @@ class InferenceService:
                 if classify:
                     raise
                 logger.warning("SDNET2018 fallback classifier skipped: %s", exc)
+
         ov = None
         if return_overlay:
             vis = overlay(bgr, res["hybrid_mask"], (0, 255, 0))
@@ -253,7 +332,6 @@ class InferenceService:
                 x0, y0, x1, y1 = [int(v) for v in b["xyxy"]]; cv2.rectangle(vis, (x0, y0), (x1, y1), (0, 255, 255), 2)
             ov = cv2.imencode(".jpg", vis)[1].tobytes()
         return AnalysisOutput("close_up", out, meta, encode_mask_png(res["hybrid_mask"]), ov)
-
     def _classify(self, bgr):
         """IMAGE-LEVEL classification from 256x256 tiles: probability = MAX tile probability, decision = max >= threshold. UNVALIDATED aggregation:
         at the recall-90% operating point a patch false-alarm rate of ~13% makes 'any tile' very likely to fire on images with many tiles."""

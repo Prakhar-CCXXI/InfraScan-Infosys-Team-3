@@ -2,11 +2,11 @@
   "unet_thr": 0.4,
   "dual_threshold": {
     "config": {
-      "yolo_conf": 0.15,
-      "gate": "mask",
+      "yolo_conf": 0.22,
+      "gate": "box",
       "margin": 16,
-      "t_in": 0.4,
-      "t_out": null,
+      "t_in": 0.22,
+      "t_out": 0.7,
       "yolo_imgsz": 640,
       "min_roi": 96
     }

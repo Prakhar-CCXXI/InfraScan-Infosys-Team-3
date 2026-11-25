@@ -21,6 +21,7 @@ export default function Upload() {
     date: new Date().toISOString().split('T')[0],
     inspector: 'R. Kumar',
     profile: 'close_up',
+    mm_per_px: '',
     notes: '',
   });
   const [fe, setFe] = useState({});
@@ -57,6 +58,9 @@ export default function Upload() {
     if (!f.date) e.date = 'Choose a date.';
     if (!f.inspector.trim()) e.inspector = 'Enter inspector name.';
     if (!files.length) e.files = 'Add at least one image.';
+    if (f.mm_per_px !== '' && !(Number(f.mm_per_px) > 0)) {
+      e.mm_per_px = 'Enter a number greater than 0.';
+    }
     setFe(e);
     if (Object.keys(e).length) return;
 
@@ -68,7 +72,10 @@ export default function Upload() {
     try {
       const fd = new FormData();
       files.forEach((x) => fd.append('images', x.file));
-      Object.entries(f).forEach(([k, v]) => fd.append(k, v));
+      Object.entries(f).forEach(([k, v]) => {
+        if (k === 'mm_per_px' && !String(v).trim()) return;
+        fd.append(k, v);
+      });
 
       const r = await api.uploadImages(fd);
       setPct(100);
@@ -213,6 +220,18 @@ export default function Upload() {
                 <option value="close_up">Close-up crack surface (U-Net + Grad-CAM + geometry)</option>
                 <option value="road_scene">Road scene / dashcam (YOLO11s RDD2022 boxes)</option>
               </select>
+            </Field>
+
+            <Field label="Scale calibration, mm per pixel (optional)" error={fe.mm_per_px}>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                className="input"
+                value={f.mm_per_px}
+                onChange={(e) => setF({ ...f, mm_per_px: e.target.value })}
+                placeholder="e.g. 0.25 (leave blank for pixel units)"
+              />
             </Field>
 
             <Field label="Inspection date" error={fe.date}>
