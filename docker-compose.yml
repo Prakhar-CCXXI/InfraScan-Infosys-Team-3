@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: my-frontend
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       - backend
 
