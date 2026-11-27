@@ -5,8 +5,8 @@
       "yolo_conf": 0.22,
       "gate": "box",
       "margin": 16,
-      "t_in": 0.22,
-      "t_out": 0.7,
+      "t_in": 0.28,
+      "t_out": null,
       "yolo_imgsz": 640,
       "min_roi": 96
     }

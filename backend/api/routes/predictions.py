@@ -151,7 +151,7 @@ def _convnext_gradcam(model: Any, rgb_uint8: np.ndarray, device: Any) -> np.ndar
     """Compute a leak-free Grad-CAM heatmap on ConvNeXt-Tiny's final feature stage."""
     import torch
     import torch.nn.functional as F
-    from image_preprocessing import normalize_imagenet
+    from image_preprocessing import normalize_imagenet  # pyright: ignore[reportMissingImports]
 
     features = getattr(model, "features", None)
     if features is None or len(features) == 0:
@@ -235,6 +235,68 @@ def _extract_bgr_from_preprocess(pre: Any) -> np.ndarray | None:
     return arr
 
 
+def _unet_seg_gradcam(model: Any, rgb_uint8: np.ndarray, device: Any) -> np.ndarray | None:
+    """Compute Seg-Grad-CAM on U-Net's final decoder block, backpropagating only predicted crack pixels."""
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from image_preprocessing import normalize_imagenet  # pyright: ignore[reportMissingImports]
+
+    target_layer = None
+    decoder = getattr(model, "decoder", None)
+    if decoder is not None and hasattr(decoder, "blocks") and len(decoder.blocks) > 0:
+        target_layer = decoder.blocks[-1]
+    else:
+        convs = [m for m in model.modules() if isinstance(m, nn.Conv2d)]
+        if len(convs) >= 2:
+            target_layer = convs[-2]
+    if target_layer is None:
+        return None
+
+    activations: list[torch.Tensor] = []
+
+    def _fwd_hook(_module, _inp, output):
+        activations.append(output)
+
+    handle = target_layer.register_forward_hook(_fwd_hook)
+    was_training = model.training
+    try:
+        model.eval()
+        rgb512 = cv2.resize(rgb_uint8, (512, 512), interpolation=cv2.INTER_LINEAR)
+        x = torch.from_numpy(normalize_imagenet(rgb512)).unsqueeze(0).to(device)
+        x.requires_grad_(True)
+        with torch.enable_grad():
+            logits = model(x)
+            if isinstance(logits, (tuple, list)):
+                logits = logits[0]
+            if logits.ndim == 4 and logits.shape[1] > 1:
+                logits = logits[:, 1:2, :, :]
+            probs = torch.sigmoid(logits)
+            crack_mask = (probs > 0.25).float()
+            score = (logits * crack_mask).sum() if crack_mask.sum() > 0 else logits.max()
+            if not activations:
+                return None
+            acts = activations[0]
+            grads = torch.autograd.grad(score, acts, retain_graph=False)[0]
+
+        weights = grads.mean(dim=(2, 3), keepdim=True)
+        cam = F.relu((weights * acts).sum(dim=1, keepdim=True))
+        cam_np = cam.squeeze().detach().cpu().numpy().astype(np.float32)
+
+        if float(cam_np.max()) < 1e-6:
+            cam_np = probs.squeeze().detach().cpu().numpy().astype(np.float32)
+
+        cam_np = cv2.GaussianBlur(cam_np, (0, 0), sigmaX=4)
+        cmin, cmax = float(cam_np.min()), float(cam_np.max())
+        if cmax - cmin > 1e-8:
+            return (cam_np - cmin) / (cmax - cmin)
+        return np.zeros_like(cam_np)
+    finally:
+        handle.remove()
+        model.zero_grad(set_to_none=True)
+        model.train(was_training)
+
+
 def _save_extra_visuals(
     image_bytes: bytes,
     content_type: str | None,
@@ -244,14 +306,14 @@ def _save_extra_visuals(
     ai_service: AIInferenceService,
     use_classifier_cam: bool = False,
 ) -> dict[str, str]:
-    """Generate and save preprocessed image + Grad-CAM heatmap (U-Net or ConvNeXt fallback) under UPLOAD_DIR."""
+    """Generate and save preprocessed image + Grad-CAM heatmap (U-Net Seg-Grad-CAM or ConvNeXt fallback) under UPLOAD_DIR."""
     _ensure_extra_ml_paths()
     urls: dict[str, str] = {}
 
     # 1. Preprocessed image (data/ml/preprocessing/image_preprocessing.py)
     pre_bgr = None
     try:
-        from image_preprocessing import preprocess_image
+        from image_preprocessing import preprocess_image  # pyright: ignore[reportMissingImports]
 
         pre = preprocess_image(image_bytes, content_type)
         pre_bgr = _extract_bgr_from_preprocess(pre)
@@ -269,11 +331,10 @@ def _save_extra_visuals(
     except Exception:
         logger.exception("Preprocessed image export failed")
 
-    # 2. Grad-CAM heatmap for close_up (ConvNeXt-Tiny on hairline fallback, otherwise U-Net)
+    # 2. Grad-CAM heatmap for close_up (ConvNeXt-Tiny on hairline fallback, otherwise U-Net Seg-Grad-CAM)
     if profile == "close_up":
         try:
-            import torch
-            from gradcam import explain_segmentation, overlay_heatmap
+            from gradcam import overlay_heatmap  # pyright: ignore[reportMissingImports]
 
             if pre_bgr is None:
                 arr = np.frombuffer(image_bytes, dtype=np.uint8)
@@ -292,46 +353,7 @@ def _save_extra_visuals(
                 else:
                     unet_model, device = _find_loaded_unet(ai_service)
                     if unet_model is not None:
-                        hook_attrs = (
-                            "_forward_hooks",
-                            "_forward_pre_hooks",
-                            "_backward_hooks",
-                            "_backward_pre_hooks",
-                        )
-                        saved_hooks = {
-                            (id(m), attr): set(getattr(m, attr).keys())
-                            for m in unet_model.modules()
-                            for attr in hook_attrs
-                            if hasattr(m, attr)
-                        }
-                        was_training = unet_model.training
-                        try:
-                            with torch.enable_grad():
-                                cam_out = explain_segmentation(unet_model, rgb, device)
-                        finally:
-                            for m in unet_model.modules():
-                                for attr in hook_attrs:
-                                    if hasattr(m, attr):
-                                        hooks_dict = getattr(m, attr)
-                                        old_keys = saved_hooks.get((id(m), attr), set())
-                                        for k in list(hooks_dict.keys()):
-                                            if k not in old_keys:
-                                                hooks_dict.pop(k, None)
-                            unet_model.zero_grad(set_to_none=True)
-                            unet_model.train(was_training)
-
-                        if isinstance(cam_out, dict):
-                            cam = (
-                                cam_out.get("cam")
-                                if cam_out.get("cam") is not None
-                                else cam_out.get("heatmap")
-                            )
-                        elif isinstance(cam_out, tuple):
-                            arrays = [x for x in cam_out if isinstance(x, np.ndarray)]
-                            cam_2d = [x for x in arrays if x.ndim == 2]
-                            cam = cam_2d[0] if cam_2d else (arrays[0] if arrays else None)
-                        elif isinstance(cam_out, np.ndarray):
-                            cam = cam_out
+                        cam = _unet_seg_gradcam(unet_model, rgb, device)
                     else:
                         logger.warning("Grad-CAM skipped: no loaded U-Net nn.Module found on ai_service")
 
@@ -411,6 +433,10 @@ def _serialize_analysis(pred: Prediction) -> dict[str, Any]:
     cls_info = details.get("classification") or raw_inf.get("classification") or {}
     all_warnings = set(details.get("warnings") or []) | set(raw_inf.get("warnings") or [])
     hairline_fallback = "HAIRLINE_CRACK_CLASSIFIER_FALLBACK" in all_warnings
+
+    # Suppress empty black mask image on classifier-only hairline crack fallbacks
+    if profile == "close_up" and hairline_fallback and int(meas.get("area_px") or 0) == 0:
+        visuals["mask"] = None
 
     original_url = visuals.get("original") or f"/uploads/{pred.image_filename}"
     visuals["original"] = original_url
@@ -734,8 +760,8 @@ async def analyze_infrastructure_image(
     summary="Upload inspection images from frontend form, store on backend, and run AI analysis",
 )
 async def upload_frontend_images(
-    images: list[UploadFile] = File(None, description="Multiple uploaded images"),
-    file: UploadFile = File(None, description="Single uploaded image"),
+    images: list[UploadFile] | None = File(None, description="Multiple uploaded images"),
+    file: UploadFile | None = File(None, description="Single uploaded image"),
     assetId: str | None = Form(None),
     asset_id: str | None = Form(None),
     date: str | None = Form(None),
